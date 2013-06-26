@@ -16,26 +16,67 @@ def nan2zero(x):
     return x
 
 def tps_eval(x_ma, lin_ag, trans_g, w_ng, x_na):
+    """
+    Evaluate TPS function. 
+    
+    x_ma -> evaluated points
+    lin_ag -> linear portion
+    trans_g -> affine translation
+    w_ng -> non-linear warping, basically coefficients for each demo point
+    x_na -> initial points
+    
+    Misc. 
+    n -> # of initial points
+    m -> # of evaluated points
+    """
+    
+    # Calculate Kernel matrix - 
+    # Radial basis functions associated with vector weights for each initial point  
     K_mn = ssd.cdist(x_ma, x_na)
+    
+    # Warp (mxn*nx3) + Linear (mx3*3x3) + Translation ("x3)
     return np.dot(K_mn, w_ng) + np.dot(x_ma, lin_ag) + trans_g[None,:]
 
 def tps_grad(x_ma, lin_ag, _trans_g, w_ng, x_na):
+    """
+    TPS Gradient.
+    
+    x_ma -> evaluated points
+    lin_ag -> linear portion
+    trans_g -> affine translation
+    w_ng -> non-linear warping, basically coefficients for each demo point
+    x_na -> initial points
+    """
+    
     _N, D = x_na.shape
     M = x_ma.shape[0]
 
+    # Calculate Kernel matrix - 
+    # vector weights for radial basis functions associated with each initial point  
     dist_mn = ssd.cdist(x_ma, x_na,'euclidean')
-
+    
+    
     grad_mga = np.empty((M,D,D))
 
+    # Column vectors as opposed to row vectors
     lin_ga = lin_ag.T
     for a in xrange(D):
+        # Creates mxn matrix D, Dij = xm_i-xn_j
         diffa_mn = x_ma[:,a][:,None] - x_na[:,a][None,:]
+        # Lim dx -> 0 (||x + e_i*dx|| - ||x||)/dx = x_i/||x||
+        # Jacobian of linear part -> same thing
+        # Jacobian of translation -> 0
+        # Jacobian of warping -> each weight vector now has a contribution given by above limit
         grad_mga[:,:,a] = lin_ga[None,:,a] + np.dot(nan2zero(diffa_mn/dist_mn),w_ng)
     return grad_mga
-    
+
+
+# TODO: Understand this shit
 def tps_nr_grad(x_ma, lin_ag, _trans_g, w_ng, x_na, return_tuple = False):
     """
     gradient of green's strain
+    
+    Initial bit the same as above
     """
     N, D = x_na.shape
     M = x_ma.shape[0]
@@ -48,17 +89,21 @@ def tps_nr_grad(x_ma, lin_ag, _trans_g, w_ng, x_na, return_tuple = False):
     for a in xrange(D):
         grad_mga[:,:,a] = lin_ga[None,:,a] + np.dot(nan2zero(diffs_mna[:,:,a]/dists_mn),w_ng)
 
+    # Not even going to bother. mngab? mabng? wtf
     # m n g a b
+    # Some weird Warp Jacobian
     Jw_mngab = (nan2zero(diffs_mna[:,:,None,:,None]/dists_mn[:,:,None,None,None])) * grad_mga[:,None,:,None,:]
     Jw_mngab = Jw_mngab + Jw_mngab.transpose(0,1,2,4,3)        
     Jw_mabng = Jw_mngab.transpose(0,3,4,1,2)
     Jw = Jw_mabng.reshape(M*D**2,N*D)
     
+    # Some weird Linear Jacobian
     Jl_mcgab = np.eye(D)[None,:,None,:,None]*grad_mga[:,None,:,None,:]
     Jl_mcgab = Jl_mcgab + Jl_mcgab.transpose(0,1,2,4,3)
     Jl_mabcg = Jl_mcgab.transpose(0,3,4,1,2)
     Jl = Jl_mabcg.reshape(M*D**2,D*D)
     
+    # Translation Jacobian makes sense
     Jt = np.zeros((M*D**2,D))
     
     if return_tuple:
@@ -69,7 +114,10 @@ def tps_nr_grad(x_ma, lin_ag, _trans_g, w_ng, x_na, return_tuple = False):
     
 def tps_nr_err(x_ma, lin_ag, trans_g, w_ng, x_na):
     """
-    green's strain    
+    green's strain
+    
+    Gives error corresponding to the distance of J^T*J from the identity.
+    Error is basically vector of distance of all elements of all matrices from I.
     """
     M,D = x_ma.shape
 
@@ -81,12 +129,26 @@ def tps_nr_err(x_ma, lin_ag, trans_g, w_ng, x_na):
 
 def tps_cost(lin_ag, trans_g, w_ng, x_na, y_ng, bend_coef, K_nn=None, return_tuple=False):
     """
-    XXX doesn't include rotation cost
+    Function to compute the cost of the TPS function.
+    This doesn't include rotation cost.
+    
+    lin_ag, trans_g, w_ng are the same as before.
+    x_ng -> eval points (and possibly initial points)
+    y_ng -> output points.
+    bend_coeff -> penalty coefficient for bend constraint (non-rigid constraint)
     """
+    #Dimension - assumed to be 3 from the Kernel formula
     D = lin_ag.shape[0]
+    # If K_nn is none, assume initial and eval points are both x_na
     if K_nn is None: K_nn = ssd.squareform(ssd.pdist(x_na))
+    
+    # Pedicted y from the data and the found tps function
     ypred_ng = np.dot(K_nn, w_ng) + np.dot(x_na, lin_ag) + trans_g[None,:]
+    
+    # Residual cost
     res_cost = ((ypred_ng - y_ng)**2).sum()
+    
+    # Bend cost penalized as ||phi_tps||^2 = tr(W_ng^T*K*W_ng)
     bend_cost = bend_coef * sum(np.dot(w_ng[:,g], np.dot(-K_nn, w_ng[:,g])) for g in xrange(D))
     if return_tuple:
         return res_cost, bend_cost, res_cost + bend_cost
@@ -94,30 +156,46 @@ def tps_cost(lin_ag, trans_g, w_ng, x_na, y_ng, bend_coef, K_nn=None, return_tup
         return res_cost + bend_cost
 
 def tps_nr_cost_eval(lin_ag, trans_g, w_ng, x_na, y_ng, xnr_ma, bend_coef, nr_coef, K_nn = None, return_tuple=False):
+    """
+    Same cost as before but penalizes distance from Identity.
+    """
     D = lin_ag.shape[0]
     if K_nn is None: K_nn = ssd.squareform(ssd.pdist(x_na))
     ypred_ng = np.dot(K_nn, w_ng) + np.dot(x_na, lin_ag) + trans_g[None,:]
     res_cost = ((ypred_ng - y_ng)**2).sum()
     bend_cost = bend_coef * sum(np.dot(w_ng[:,g], np.dot(-K_nn, w_ng[:,g])) for g in xrange(D))
+    # Up until here, it's the same as above.
+    
+    # Penalizing distance from the Identity transform
+    # TODO: Understand why he is using different points
+    # Evaluating at different points, though
     nr_cost = nr_coef * (tps_nr_err(xnr_ma, lin_ag, trans_g, w_ng, x_na)**2).sum()
     if return_tuple:
         return res_cost, bend_cost, nr_cost, res_cost + bend_cost + nr_cost
     else:
         return res_cost + bend_cost + nr_cost
 
+
 def tps_nr_cost_eval_general(lin_ag, trans_g, w_eg, x_ea, y_ng, nr_ma, bend_coef, nr_coef, K_ee = None, return_tuple=True):
+    """
+    What. What is e?
+    """
     E,D = x_ea.shape
     N = y_ng.shape[0]
     M = nr_ma.shape[0]
+    # What?
     assert E == N+4*M
     
     K_ee = K_ee or ssd.squareform(ssd.pdist(x_ea))
     K_ne = K_ee[:N]
     x_na = x_ea[:N]
     
+    # Ok. This stuff makes sense
     ypred_ng = np.dot(K_ne, w_eg) + np.dot(x_na, lin_ag) + trans_g[None,:]
     res_cost = ((ypred_ng - y_ng)**2).sum()
     bend_cost = bend_coef * sum(np.dot(w_eg[:,g], np.dot(-K_ee, w_eg[:,g])) for g in xrange(D))
+    
+    # Why is nr_ma different while evaluating distance from Identity?
     nr_cost = nr_coef * (tps_nr_err(nr_ma, lin_ag, trans_g, w_eg, x_ea)**2).sum()
     if return_tuple:
         return res_cost, bend_cost, nr_cost, res_cost + bend_cost + nr_cost
@@ -126,6 +204,9 @@ def tps_nr_cost_eval_general(lin_ag, trans_g, w_eg, x_ea, y_ng, nr_ma, bend_coef
 
 
 def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None):
+    """
+    Yayy1!
+    """
     N,D = x_na.shape
         
     # XXX wt not used
@@ -135,6 +216,12 @@ def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None):
     #else: reg_nn = np.diag(bend_coef/(wt_n + 1e-6))
     #print wt_n
     reg_nn = bend_coef * np.eye(N)
+    
+    
+    # Top block of rows - Constraint for TPS to actually have a function which 
+    # does the right thing
+    # Middle block partially enforces the first moment constraints
+    # Bottom block enforces the zeroth moment constraint
     
     A = np.r_[
         np.c_[K_nn - reg_nn,   x_na,    np.ones((N,1))],
@@ -146,6 +233,7 @@ def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None):
         np.zeros((1, D))
     ]
     
+    # X = inv(A)*B.
     X = np.linalg.solve(A, B)
     w_ng = X[:N,:]
     lin_ag = X[N:N+D,:]
@@ -185,29 +273,37 @@ def solve_eqp1(H, f, A):
     
     return x
     
+    
 def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
     if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
     assert d == 3
     K_nn = ssd.squareform(ssd.pdist(x_na))
+    
+    # Only considering diagonal blocks for this, because of trace
     Q = np.c_[np.ones((n,1)), x_na, K_nn]
     WQ = wt_n[:,None] * Q
     QWQ = Q.T.dot(WQ)
     H = QWQ
+    
     H[4:,4:] -= bend_coef * K_nn # -K_nn is conditionally positive definite (CPD)
     H[1:4, 1:4] += rot_coef * np.eye(3)
+    
+    # H (along with f) forces takes care of ||Y - KA - XB - 1^TC|| because Y^TY is constant.
+    # It also enforces the bend and rot coeffs 
+    # A enforces the moment constraints
+    
+    # There seems to be an extra n at X[0,0]
     
     f = -WQ.T.dot(y_ng)
     f[1:4,0:3] -= rot_coef * np.eye(3)
     
+    # A basially only for w_ng
     A = np.r_[np.zeros((4,4)), np.c_[np.ones((n,1)), x_na]].T
     
     Theta = solve_eqp1(H,f,A)
     
     return Theta[1:4], Theta[0], Theta[4:]
-    
-    
-    
     
     
     
@@ -219,11 +315,16 @@ def tps_fit2(x_na, y_ng, bend_coef, rot_coef, wt_n=None):
     K_nn = ssd.squareform(ssd.pdist(x_na))
     Q_nn = np.c_[x_na, np.ones((N,1)),K_nn.dot(N_nq)]
     QQ_nn = np.dot(Q_nn.T, Q_nn)
-    
+
+    # Q_nn*[lin_ag; trans_g; w_ng] ~ y_ng
+    # Without the coefficients, we would have Ax = Q_nn^T*(~y_ng) = Q_nn^T*y_ng = B
+    # But, the rotation and bend constraints are added at the relevant positions.
+    # Otherwise, it's exactly as before    
     A = QQ_nn    
     A[4:, 4:] -= bend_coef * N_nq.T.dot(K_nn).dot(N_nq)
     B = Q_nn.T.dot(y_ng)
 
+    # Adding coefficients for constraints - seems more like an 
     A[:3, :3] += rot_coef * np.eye(3)
     B[:3, :3] += rot_coef * np.eye(3)
     
@@ -428,10 +529,11 @@ def tps_nr_fit_enhanced(x_na, y_ng, bend_coef, nr_ma, nr_coef, plotting=0):
         w_eg = cand_w_eg
     return lin_ag, trans_g, w_eg, x_ea
 
-
 def tps_fit_fixedrot(x_na, y_ng, bend_coef, lin_ag, K_nn = None, wt_n=None):
     """
     minimize (Y-KA-XB-1C)'W(Y-KA-XB-1C) + tr(A'KA) + r(B)
+    
+    Here, B is given.
     """
     
     N,_D = x_na.shape
@@ -446,6 +548,9 @@ def tps_fit_fixedrot(x_na, y_ng, bend_coef, lin_ag, K_nn = None, wt_n=None):
     A[1:, 1:] -= bend_coef * N_nq.T.dot(K_nn).dot(N_nq)
     B = Q_nn.T.dot(y_ng-x_na.dot(lin_ag))
 
+    # Without the bend coeff, the equation is exactly the same as 
+    # Q_nn^T(~y_ng - X_na^T*lin_ag) = Q_nn^T(y_ng - X_na^T*lin_ag)
+    # But, the coefficient matrices are in the relevant places  
     X = np.linalg.solve(A,B)
 
     trans_g = X[0,:]    
@@ -457,6 +562,8 @@ def tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n=None, max_iter = 10, inner
     """
     minimize (Y-KA-XB-1C)' W (Y-KA-XB-1C) + tr(A'KA) + r(B)
     subject to A'(X 1) = 0
+    
+    Here, r is given.
     """
     
     K_nn = ssd.squareform(ssd.pdist(x_na))
@@ -471,6 +578,8 @@ def tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n=None, max_iter = 10, inner
         if True: print "initializing rotation with\n ",lin_ag
         trans_g, w_ng = tps_fit_fixedrot(x_na, y_ng, bend_coef, lin_ag, K_nn, wt_n)
     #w_ng *= 0
+    
+    # TODO figure this out - 
     Q_nn = np.eye(N) - np.outer(np.ones(N), np.ones(N))/N
     for _ in xrange(max_iter):
         e_ng = y_ng - K_nn.dot(w_ng)
@@ -495,7 +604,6 @@ def tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n=None, max_iter = 10, inner
     #trans_g = y_ng.mean(axis=0) - tps_eval(x_na, lin_ag, np.zeros(3), w_ng, x_na).mean(axis=0)
     if VERBOSE: print "rotation result", lin_ag
     return lin_ag, trans_g, w_ng
-
 #def tps_fit_regrot2(x_na, y_ng, bend_coef, rfunc, wt_n=None, max_iter = 20):
     #"""
     #minimize (Y-KA-XB-1C)' W (Y-KA-XB-1C) + tr(A'KA) + r(B)

@@ -171,5 +171,5 @@ def follow_rave_trajectory(pr2, ravetraj, dof_inds, use_base = False, base_frame
         base_traj = ravetraj[:,-3:]
         bodypart2traj["base"] = base_traj
         
-    follow_body_traj2(pr2, bodypart2traj, base_frame = base_frame)
+    follow_body_traj(pr2, bodypart2traj, base_frame = base_frame)
     
