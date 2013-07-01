@@ -159,9 +159,20 @@ def get_video_frames(video_dir, frame_stamps):
 
 def get_num_frames(video_dir, frame_stamp, num_frames):
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
-    frame_inds = np.searchsorted(video_stamps, frame_stamp)
+    frame_ind = np.searchsorted(video_stamps, frame_stamp)
     
-    for i in xrange(1,num_frames):
+    rgbs = []
+    depths = []
+    for i in xrange(frame_ind, frame_ind + num_frames):
+        rgb = cv2.imread(osp.join(video_dir,"rgb%.2i.jpg"%i))
+        depth = cv2.imread(osp.join(video_dir,"depth%.2i.png"%i),2)
+        if not rgb:
+            break
+        rgbs.append(rgb)
+        depths.append(depth)
+        
+    return rgbs, depths
+
         
 
 
