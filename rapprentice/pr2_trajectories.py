@@ -1,7 +1,8 @@
 import rospy
 import numpy as np
 from rapprentice import conversions as conv, math_utils as mu, \
-    kinematics_utils as ku, retiming, PR2
+    kinematics_utils as ku, retiming
+from pr2.PR2 import PR2
 
 def make_joint_traj(xyzs, quats, manip, ref_frame, targ_frame, filter_options = 0):
     "do ik and then fill in the points where ik failed"

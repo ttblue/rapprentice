@@ -43,7 +43,8 @@ If you're using fake data, don't update it.
 
 from rapprentice import registration, colorize, berkeley_pr2, \
      animate_traj, ros2rave, plotting_openrave, task_execution
-from rapprentice import pr2_trajectories, PR2
+from rapprentice import pr2_trajectories
+from pr2 import PR2
 import rospy
 
 import cloudprocpy, trajoptpy, json, openravepy

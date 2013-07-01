@@ -1,6 +1,6 @@
 import cloudprocpy
 import rospy
-from rapprentice.PR2 import TopicListener
+from pr2.PR2 import TopicListener
 import sensor_msgs.msg as sm
 import numpy as np
 

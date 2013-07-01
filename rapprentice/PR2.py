@@ -107,8 +107,12 @@ class PR2(object):
         self.torso = Torso(self)
         self.base = Base(self)
 
-
         rospy.on_shutdown(self.stop_all)
+        
+    def goto_posture(self, pos):
+        self.larm.goto_posture(pos)
+        self.rarm.goto_posture(pos)
+        self.join_all()
 
     def _set_rave_limits_to_soft_joint_limits(self):
         # make the joint limits match the PR2 soft limits

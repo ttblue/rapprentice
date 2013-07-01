@@ -147,7 +147,6 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         add_kinematics_to_group(group, link_names, manip_names, special_joint_names, robot)
 
 def get_video_frames(video_dir, frame_stamps):
-    imgs = []
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
     frame_inds = np.searchsorted(video_stamps, frame_stamps)
     
@@ -157,6 +156,13 @@ def get_video_frames(video_dir, frame_stamps):
         rgbs.append(cv2.imread(osp.join(video_dir,"rgb%.2i.jpg"%frame_ind)))
         depths.append(cv2.imread(osp.join(video_dir,"depth%.2i.png"%frame_ind),2))
     return rgbs, depths
+
+def get_num_frames(video_dir, frame_stamp, num_frames):
+    video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
+    frame_inds = np.searchsorted(video_stamps, frame_stamp)
+    
+    for i in xrange(1,num_frames):
+        
 
 
 def add_rgbd_to_hdf(video_dir, annotations, hdfroot, demo_name):

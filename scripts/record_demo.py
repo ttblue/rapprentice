@@ -4,6 +4,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("demo_prefix")
 parser.add_argument("master_file")
+parser.add_argument("--annotation_func", default="normal_gen")
 parser.add_argument("--downsample", default=3, type=int)
 args = parser.parse_args()
 
@@ -22,7 +23,15 @@ started_video = False
 localtime   = time.localtime()
 time_string  = time.strftime("%Y-%m-%d-%H-%M-%S", localtime)
 
-os.chdir(osp.dirname(args.master_file))
+if not osp.isfile(args.master_file):
+    master_name = args.master_file.split("/")[-1]
+    with open(args.master_file, "w") as f:
+        f.write("name: %s/n"%master_name)
+        f.write("h5path: %s/n"%(master_name+".h5"))
+        f.write("bags:/n")
+
+dirname = osp.dirname(args.master_file)
+os.chdir(dirname)
 
 with open(args.master_file, "r") as fh: master_info = yaml.load(fh)
 for suffix in itertools.chain("", (str(i) for i in itertools.count())):
@@ -62,8 +71,9 @@ finally:
 
 bagfilename = demo_name+".bag"
 if yes_or_no("save demo?"):
+    annotations_gen_file = osp.join(os.getenv('RAPPRENTICE_SOURCE_DIR'), 'scripts', 'generate_annotations.py')
     annfilename = demo_name+".ann.yaml"
-    call_and_print("generate_annotations.py %s %s"%(bagfilename, annfilename))
+    call_and_print(annotations_gen_file + " %s %s --annotation_func=%s"%(osp.join(dirname, bagfilename), osp.join(dirname, annfilename), args.annotation_func))
     with open(args.master_file,"a") as fh:
         fh.write("\n"
             "- bag_file: %(bagfilename)s\n"

@@ -1,4 +1,4 @@
-from brett2.PR2 import PR2
+from PR2 import PR2
 #roslib.load_manifest("nav_msgs"); import nav_msgs.msg as nm
 import trajectory_msgs.msg as tm
 import numpy as np

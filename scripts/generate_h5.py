@@ -31,7 +31,6 @@ with open(args.task_file, "r") as fh: task_info = yaml.load(fh)
 
 
 task_name = task_info["name"].strip()
-
 task_dir = osp.dirname(args.task_file)
 
 

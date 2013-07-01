@@ -1,5 +1,5 @@
 #!/usr/bin/env ipython -i
-from rapprentice.PR2 import PR2
+from pr2.ArmPlannerPR2 import PlannerPR2
 import rospy
 rospy.init_node("command_pr2", disable_signals = True)
-pr2 = PR2()
+pr2 = PlannerPR2()
