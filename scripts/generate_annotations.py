@@ -39,8 +39,9 @@ def suture_gen(bagfile, outfile):
         print "\t%.4f: %s"%(stamp/1.e9, meaning)
 
     video_dir = bagfile.split(".")[-2]
-    import suturing.find_keypoint_annotations as fka
-    seg_infos = fka.create_annotations(stamps, meanings, bagfile, video_dir)
+    import os.path as osp
+    import suturing.find_keypoints as fk
+    seg_infos = fk.create_annotations(stamps, meanings, bagfile, video_dir)
     
     for (i_seg, seg_info) in enumerate(seg_infos): 
         seg_info["name"] = "seg%.2i"%i_seg

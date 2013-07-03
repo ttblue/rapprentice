@@ -145,6 +145,9 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         manip_names = ["leftarm", "rightarm"]
         
         add_kinematics_to_group(group, link_names, manip_names, special_joint_names, robot)
+        
+        if seg_info.get('key_points'):
+            group["key_points"] = seg_info["key_points"]
 
 def get_video_frames(video_dir, frame_stamps):
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
@@ -158,6 +161,9 @@ def get_video_frames(video_dir, frame_stamps):
     return rgbs, depths
 
 def get_num_frames(video_dir, frame_stamp, num_frames):
+    """
+    Returns the next @num_frames frames in the video from frame_stamp.
+    """
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
     frame_ind = np.searchsorted(video_stamps, frame_stamp)
     
@@ -166,15 +172,27 @@ def get_num_frames(video_dir, frame_stamp, num_frames):
     for i in xrange(frame_ind, frame_ind + num_frames):
         rgb = cv2.imread(osp.join(video_dir,"rgb%.2i.jpg"%i))
         depth = cv2.imread(osp.join(video_dir,"depth%.2i.png"%i),2)
-        if not rgb:
+        if rgb is None:
             break
         rgbs.append(rgb)
         depths.append(depth)
         
     return rgbs, depths
 
-        
-
+def get_next_frame(video_dir, frame_stamp):
+    """
+    Returns the next frame in the video from frame_stamp.
+    Returns next frame stamp, rgb image and depth image.
+    """
+    video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
+    frame_ind = np.searchsorted(video_stamps, frame_stamp)
+    
+    new_ind = frame_ind + 1
+    
+    rgb = cv2.imread(osp.join(video_dir,"rgb%.2i.jpg"%new_ind))
+    depth = cv2.imread(osp.join(video_dir,"depth%.2i.png"%new_ind),2)
+    
+    return video_stamps[new_ind], rgb, depth
 
 def add_rgbd_to_hdf(video_dir, annotations, hdfroot, demo_name):
     

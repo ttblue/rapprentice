@@ -43,4 +43,6 @@ fastmath
 *.wpr
 *.wpu
 
+*data/*
+
 doc/_build

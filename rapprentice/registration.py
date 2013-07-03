@@ -86,6 +86,18 @@ class ThinPlateSpline(Transformation):
         self.lin_ag = np.eye(d)
         self.trans_g = np.zeros(d)
         self.w_ng = np.zeros((0,d))
+        
+    def init_rigid_tfm (self, tfm, dim=3):
+        """
+        Assuming dimension = 3.
+        """
+        if dim != 3:
+            raise NotImplementedError("Dimension other than 3 not supported.")
+        self.lin_ag = tfm[0:3,0:3].T
+        self.trans_g = tfm[0:3,3].T
+        self.x_na = np.zeros((0,3))
+        self.w_ng = np.zeros((0,3))
+        
 
     def transform_points(self, x_ma):
         y_ng = tps.tps_eval(x_ma, self.lin_ag, self.trans_g, self.w_ng, self.x_na)
