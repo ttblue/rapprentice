@@ -65,9 +65,12 @@ for (seg_name, seg_info) in hdf.items():
     for field in ["cloud_xyz", "cloud_proc_func", "cloud_proc_mod", "cloud_proc_code"]:
         if field in seg_info: del seg_info[field]
     
-    seg_info["cloud_xyz"] = cloud_proc_func(np.asarray(seg_info["rgb"]), np.asarray(seg_info["depth"]), np.asarray(seg_info["T_w_k"]))
-    seg_info["cloud_proc_func"] = args.cloud_proc_func
-    seg_info["cloud_proc_mod"] = args.cloud_proc_mod
-    seg_info["cloud_proc_code"] = inspect.getsource(cloud_proc_func)
+    try:
+        seg_info["cloud_xyz"] = cloud_proc_func(np.asarray(seg_info["rgb"]), np.asarray(seg_info["depth"]), np.asarray(seg_info["T_w_k"]))
+        seg_info["cloud_proc_func"] = args.cloud_proc_func
+        seg_info["cloud_proc_mod"] = args.cloud_proc_mod
+        seg_info["cloud_proc_code"] = inspect.getsource(cloud_proc_func)
+    except:
+        print "Something went wrong."
     
     

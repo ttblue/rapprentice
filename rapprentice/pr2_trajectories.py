@@ -95,6 +95,8 @@ def follow_body_traj(pr2, bodypart2traj, wait=True, base_frame = "/base_footprin
     times_up = np.linspace(0, times[-1], int(np.ceil(times[-1]/.1)))
     traj_up = mu.interp2d(times_up, times, trajectories)
     
+    print traj_up.shape
+    
     
     #### Send all part trajectories ###########
     

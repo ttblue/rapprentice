@@ -17,7 +17,7 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
     jnames, jstamps, traj = bp.extract_joints(bag)
     
     key_joint_inds = np.searchsorted(jstamps, frame_stamps)
-    key_joints = [traj[i] for i in key_joint_inds] 
+    key_joints = [traj[i] for i in key_joint_inds]
     
     for i,t in enumerate(frame_stamps):
         print 'Looking for key-points in segment %i.'%i
@@ -48,6 +48,13 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
                 
             if not yes_or_no('Enter another key point for this segment?'):
                 break
+        
+        if yes_or_no('Is the needle-tip the relevant end effector for this segment?'):
+            seg_infos[i]['extra_information'] = []
+            if yes_or_no('Is the needle in the left gripper?'):
+                seg_infos[i]['extra_information'].append("l_grab")
+            else:
+                seg_infos[i]['extra_information'].append("r_grab")
         
         seg_infos[i]['key_points'] = keypoint_info
 
@@ -96,17 +103,6 @@ def key_points_to_points (keypoints):
             p,n = loc
             points.append(p)
             points.append(p+dist*n)
-        else:
+        elif key != "none":
             points.append(loc)
     return np.array(points), False
-
-def demo_and_final_points (grabber, keypoints, tfm):
-    """
-    Find the initial and final points to do the tps_fit.
-    """
-    new_keypoints = get_keypoints_execution (grabber, keypoints.keys(), tfm)
-    
-    old_xyz, old_rigid = key_points_to_points(keypoints)
-    new_xyz, _ = key_points_to_points(new_keypoints)
-    
-    return old_xyz, new_xyz, old_rigid

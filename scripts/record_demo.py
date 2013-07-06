@@ -4,7 +4,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("demo_prefix")
 parser.add_argument("master_file")
-parser.add_argument("--annotation_func", default="normal_gen")
+parser.add_argument("--annotation_func", default="suture_gen")
 parser.add_argument("--downsample", default=3, type=int)
 args = parser.parse_args()
 
@@ -25,20 +25,26 @@ time_string  = time.strftime("%Y-%m-%d-%H-%M-%S", localtime)
 
 if not osp.isfile(args.master_file):
     master_name = args.master_file.split("/")[-1]
+    if master_name[-5:] == '.yaml':
+        master_name = master_name.split(".")[-2] 
     with open(args.master_file, "w") as f:
-        f.write("name: %s/n"%master_name)
-        f.write("h5path: %s/n"%(master_name+".h5"))
-        f.write("bags:/n")
+        f.write("name: %s\n"%master_name)
+        f.write("h5path: %s\n"%(master_name+".h5"))
+        f.write("bags: ")
 
 dirname = osp.dirname(args.master_file)
 os.chdir(dirname)
 
 with open(args.master_file, "r") as fh: master_info = yaml.load(fh)
-for suffix in itertools.chain("", (str(i) for i in itertools.count())):
-    demo_name = args.demo_prefix + suffix
-    if not any(bag["demo_name"] == demo_name for bag in master_info["bags"]):
-        break
-    print demo_name
+if master_info["bags"] == None:
+    demo_name = args.demo_prefix
+else:
+    for suffix in itertools.chain("", (str(i) for i in itertools.count())):
+        demo_name = args.demo_prefix + suffix
+    
+        if not any(bag["demo_name"] == demo_name for bag in master_info["bags"]):
+            break
+        print demo_name
 
 subprocess.call("killall XnSensorServer", shell=True)
 
@@ -78,7 +84,7 @@ if yes_or_no("save demo?"):
         fh.write("\n"
             "- bag_file: %(bagfilename)s\n"
             "  annotation_file: %(annfilename)s\n"
-            "  video_dir: %(videodir)s"
+            "  video_dir: %(videodir)s\n"
             "  demo_name: %(demoname)s"%dict(bagfilename=bagfilename, annfilename=annfilename, videodir=demo_name, demoname=demo_name))
 else:
     shutil.rmtree(demo_name) #video dir

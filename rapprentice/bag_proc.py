@@ -147,7 +147,13 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         add_kinematics_to_group(group, link_names, manip_names, special_joint_names, robot)
         
         if seg_info.get('key_points'):
-            group["key_points"] = seg_info["key_points"]
+            group.create_group("key_points")
+            for key in seg_info["key_points"]:
+                group["key_points"][key] = seg_info["key_points"][key] 
+        if seg_info.get('ree'):
+            group["ree"] = seg_info["ree"]
+        if seg_info.get('lee'):
+            group["lee"] = seg_info["lee"] 
 
 def get_video_frames(video_dir, frame_stamps):
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))

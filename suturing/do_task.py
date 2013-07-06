@@ -4,6 +4,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("h5file", type=str)
 
+parser.add_argument("--openloop", type=int, default=0)
 parser.add_argument("--execution", type=int, default=0)
 parser.add_argument("--animation", type=int, default=0)
 
@@ -40,24 +41,17 @@ If you're using fake data, don't update it.
 
 
 from rapprentice import registration, colorize, berkeley_pr2, \
-     animate_traj, ros2rave, plotting_openrave, task_execution
-from rapprentice import pr2_trajectories
+     animate_traj, ros2rave, plotting_openrave, task_execution, resampling
+from rapprentice import pr2_trajectories, retiming, math_utils as mu
 from pr2 import PR2
 import rospy
 
 import cloudprocpy, trajoptpy, json, openravepy
-import os, numpy as np, h5py, os.path as osp
+import numpy as np, h5py
 from numpy import asarray
-import importlib
-import subprocess
 
-import find_keypoints as fk
+import find_keypoints as fk   
 
-cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
-cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
-    
-
-    
     
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
@@ -100,6 +94,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     assert old_traj.shape[1] == 7
     
     arm_inds  = robot.GetManipulator(manip_name).GetArmIndices()
+    robot.SetActiveDOFs(arm_inds)
 
     ee_linkname = ee_link.GetName()
     
@@ -162,7 +157,8 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         
     print "planned trajectory for %s. max position error: %.3f. all position errors: %s"%(manip_name, pos_errs.max(), pos_errs)
             
-    return traj         
+    return traj
+    
     
 def set_gripper_maybesim(lr, value):
     if args.execution:
@@ -174,6 +170,7 @@ def set_gripper_maybesim(lr, value):
         
 def exec_traj_maybesim(bodypart2traj):
     if args.animation:
+        """
         dof_inds = []
         trajs = []
         for (part_name, traj) in bodypart2traj.items():
@@ -183,13 +180,38 @@ def exec_traj_maybesim(bodypart2traj):
         full_traj = np.concatenate(trajs, axis=1)
         Globals.robot.SetActiveDOFs(dof_inds)
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
+        """
+        name2part = {"lgrip":Globals.pr2.lgrip, 
+                     "rgrip":Globals.pr2.rgrip, 
+                     "larm":Globals.pr2.larm, 
+                     "rarm":Globals.pr2.rarm,
+                     "base":Globals.pr2.base}
+        dof_inds = []
+        trajs = []
+        vel_limits = []
+        for (part_name, traj) in bodypart2traj.items():
+            manip_name = {"larm":"leftarm","rarm":"rightarm"}[part_name]
+            vel_limits.extend(name2part[part_name].vel_limits)
+            dof_inds.extend(Globals.robot.GetManipulator(manip_name).GetArmIndices())
+            if traj.ndim == 1: traj = traj.reshape(-1,1)            
+            trajs.append(traj)
+        
+        trajectories = np.concatenate(trajs, 1)
+        print trajectories.shape
+        times = retiming.retime_with_vel_limits(trajectories, np.array(vel_limits))
+        times_up = np.linspace(0, times[-1], int(np.ceil(times[-1]/.1)))
+        full_traj = mu.interp2d(times_up, times, trajectories)
+        print full_traj.shape
+        
+        Globals.robot.SetActiveDOFs(dof_inds)
+        animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
+        return True
     if args.execution:
-        pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj)
+        pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=0.5)
+        return True
 
 
-
-def find_closest(demofile):
-    "for now, just prompt the user"
+def select_segment(demofile):
     seg_names = demofile.keys()
     print "choose from the following options (type an integer)"
     for (i, seg_name) in enumerate(seg_names):
@@ -197,6 +219,10 @@ def find_closest(demofile):
     choice_ind = task_execution.request_int_in_range(len(seg_names))
     chosen_seg = seg_names[choice_ind] 
     return chosen_seg
+
+def find_closest(demofile):
+    "for now, just prompt the user"
+    return select_segment(demofile)
             
             
 def arm_moved(joint_traj):    
@@ -212,10 +238,35 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
 
 
 class Globals:
-    robot = None
+    # Rave
     env = None
+    robot = None
+    demo_env = None
+    demo_robot = None
+    
+    # Needle tip
+    needle_tip = None
+    demo_needle_tip = None
 
+    # PR2 control
     pr2 = None
+    
+    
+
+def setup_needle_traj (lr, arm_traj, old_tfm, new_tfm):
+    
+    Globals.demo_needle_tip.SetTransform(old_tfm)
+    Globals.demo_robot.Grab(Globals.demo_needle_tip, Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr))
+    Globals.needle_tip.SetTransform(new_tfm)
+    Globals.robot.Grab(Globals.needle_tip, Globals.robot.GetLink("%s_gripper_tool_frame"%lr))
+    
+    needle_traj = []
+    for row in arm_traj:
+        Globals.demo_robot.SetActiveDOFValues(row)
+        needle_traj.append(Globals.demo_needle_tip.GetTransform())
+    
+    return needle_traj
+    
 
 def main():
 
@@ -232,8 +283,15 @@ def main():
     else:
         Globals.env = openravepy.Environment()
         Globals.env.StopSimulation()
-        Globals.env.Load("robots/pr2-beta-static.zae")    
+        Globals.env.Load("robots/pr2-beta-static.zae")
         Globals.robot = Globals.env.GetRobots()[0]
+        
+    Globals.needle_tip = trajoptpy.make_kinbodies.create_spheres(Globals.env, [(0,0,0)], radii=0.02, name="needle_tip")
+    Globals.demo_env = Globals.env.CloneSelf(1)
+    Globals.demo_env.StopSimulation()
+    Globals.demo_robot = Globals.demo_env.GetRobot("pr2")
+    Globals.demo_needle_tip = Globals.demo_env.GetKinBody("needle_tip")
+    Globals.env.Load("/home/sibi/sandbox/rapprentice/objects/table.xml")
 
     if not args.fake_data_segment:
         grabber = cloudprocpy.CloudGrabber()
@@ -259,7 +317,7 @@ def main():
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)            
 
     
-        ################################    
+        ################################
         redprint("Finding closest demonstration")
         if args.fake_data_segment:
             seg_name = args.fake_data_segment
@@ -283,7 +341,9 @@ def main():
             old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
             new_xyz, _ = fk.key_points_to_points(new_keypoints)
         else:
-            old_xyz, new_xyz, rigid = fk.demo_and_final_points(grabber, T_w_k, seg_info['key_points'])
+            new_keypoints = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k)
+            old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
+            new_xyz, _ = fk.key_points_to_points(new_keypoints)
         
         
         handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
@@ -311,29 +371,29 @@ def main():
         
         handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
         
-
-        link2eetraj = {}
-        for lr in 'lr':
-            link_name = "%s_gripper_tool_frame"%lr
-            old_ee_traj = asarray(seg_info[link_name]["hmat"])
-            new_ee_traj = f.transform_hmats(old_ee_traj)
-            link2eetraj[link_name] = new_ee_traj
-            
-            handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
-            handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
-            
-            
-            
+        
         # TODO plot
         # plot_warping_and_trajectories(f, old_xyz, new_xyz, old_ee_traj, new_ee_traj)
     
-        miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)    
+        use_needle = "%s_grab" in seg_info["extra_information"] and "needle_tip_transform" in seg_info['key_points']
+    
+        miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
         success = True
         print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
             if args.execution=="real": Globals.pr2.update_rave()
 
+
+            # Changing the trajectory according to the end-effector
+            full_traj = np.c_[seg_info["leftarm"][i_start:i_end+1], seg_info["rightarm"][i_start:i_end+1]]
+            full_traj = mu.remove_duplicate_rows(full_traj)
+            _, ds_traj =  resampling.adaptive_resample(full_traj, tol=.01, max_change=.1) # about 2.5 degrees, 10 degrees
+
+            Globals.robot.SetActiveDOFs(np.r_[Globals.robot.GetManipulator("leftarm").GetArmIndices(), Globals.robot.GetManipulator("rightarm").GetArmIndices()])
+            Globals.demo_robot.SetActiveDOFs(np.r_[Globals.robot.GetManipulator("leftarm").GetArmIndices(), Globals.robot.GetManipulator("rightarm").GetArmIndices()])        
+            Globals.demo_robot.SetDOFValues(Globals.robot.GetDOFValues())
+        
 
             ################################    
             redprint("Generating joint trajectory for segment %s, part %i"%(seg_name, i_miniseg))
@@ -343,15 +403,26 @@ def main():
             arms_used = ""
         
             for lr in 'lr':
-                manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
-                old_joint_traj = asarray(seg_info[manip_name][i_start:i_end+1])
-                if arm_moved(old_joint_traj):          
+                if use_needle:
+                    old_ee_traj = setup_needle_traj (lr, ds_traj, seg_info["key_points"]["needle_tip_transform"])
+                    link = Globals.needle_tip.GetLinks()[0]
+                else:
                     ee_link_name = "%s_gripper_tool_frame"%lr
-                    new_ee_traj = link2eetraj[ee_link_name]
-                    if args.execution: Globals.pr2.update_rave()                    
+                    link = Globals.robot.GetLink(ee_link_name)
+                    old_ee_traj = asarray(seg_info[ee_link_name]["hmat"])
+                    
+                old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
+
+                if arm_moved(old_joint_traj):
+                    
+                    manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
+                    new_ee_traj = f.transform_hmats(old_ee_traj)                
+                    handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
+                    handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
+                
+                    if args.execution: Globals.pr2.update_rave()
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
-                     Globals.robot.GetLink(ee_link_name), new_ee_traj[i_start:i_end+1], 
-                     old_joint_traj)
+                                                      link, new_ee_traj, old_joint_traj)
                     # (robot, manip_name, ee_link, new_hmats, old_traj):
                     part_name = {"l":"larm", "r":"rarm"}[lr]
                     bodypart2traj[part_name] = new_joint_traj
@@ -379,5 +450,58 @@ def main():
     
         if args.fake_data_segment: break
 
+def openloop():
+    
+    demofile = h5py.File(args.h5file, 'r')
+    
+    if args.execution:
+        rospy.init_node("exec_task",disable_signals=True)
+        Globals.pr2 = PR2.PR2()
+        Globals.env = Globals.pr2.env
+        Globals.robot = Globals.pr2.robot
+        
+    else:
+        Globals.env = openravepy.Environment()
+        Globals.env.StopSimulation()
+        Globals.env.Load("robots/pr2-beta-static.zae")
+        Globals.robot = Globals.env.GetRobots()[0]
+    
+    while True:
+        seg_name = select_segment(demofile)
+        seg_info = demofile[seg_name]
+     
+        miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
+        print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
+        for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
+            
+            ################################    
+            redprint("Generating joint trajectory for segment %s, part %i"%(seg_name, i_miniseg))
 
-main()
+            bodypart2traj = {}
+            arms_used = ""
+            
+            freq = 5
+            # Not sure about frequency - look into this
+            for lr in 'lr':
+                manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
+                time_length = np.ptp(seg_info["stamps"])
+                num = np.round(time_length*freq)
+                print "Number of steps: ", num
+                _, joint_traj = resampling.adaptive_resample(asarray(seg_info[manip_name][i_start:i_end+1]), tol=0.01, max_change=.1, min_steps=num)
+                if arm_moved(joint_traj):
+                    part_name = {"l":"larm", "r":"rarm"}[lr]
+                    bodypart2traj[part_name] = joint_traj
+                    arms_used += lr
+        
+            redprint("Executing open-loop trajectory for segment %s, part %i using arms '%s'"%(seg_name, i_miniseg, arms_used))
+            
+            for lr in 'lr':
+                set_gripper_maybesim(lr, binarize_gripper(seg_info["%s_gripper_joint"%lr][i_start]))
+                
+            if len(bodypart2traj) > 0:
+                exec_traj_maybesim(bodypart2traj)
+
+if args.openloop:
+    openloop()
+else:
+    main()

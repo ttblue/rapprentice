@@ -19,8 +19,8 @@ import rospy
 import geometry_msgs.msg as gm           
 import move_base_msgs.msg as mbm   
 
-VEL_RATIO = .2
-ACC_RATIO = .3
+VEL_RATIO = .1
+ACC_RATIO = .2
 
 class IKFail(Exception):
     pass
