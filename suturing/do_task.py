@@ -168,7 +168,7 @@ def set_gripper_maybesim(lr, value):
     else:
         Globals.robot.SetDOFValues([value*5], [Globals.robot.GetJoint("%s_gripper_l_finger_joint"%lr).GetDOFIndex()])
         
-def exec_traj_maybesim(bodypart2traj):
+def exec_traj_maybesim(bodypart2traj, speed_factor=0.5):
     if args.animation:
         """
         dof_inds = []
@@ -207,7 +207,7 @@ def exec_traj_maybesim(bodypart2traj):
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
         return True
     if args.execution:
-        pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=0.5)
+        pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=speed_factor)
         return True
 
 
@@ -286,7 +286,8 @@ def main():
         Globals.env.Load("robots/pr2-beta-static.zae")
         Globals.robot = Globals.env.GetRobots()[0]
         
-    Globals.needle_tip = trajoptpy.make_kinbodies.create_spheres(Globals.env, [(0,0,0)], radii=0.02, name="needle_tip")
+    import trajoptpy.make_kinbodies as mk
+    Globals.needle_tip = mk.create_spheres(Globals.env, [(0,0,0)], radii=0.02, name="needle_tip")
     Globals.demo_env = Globals.env.CloneSelf(1)
     Globals.demo_env.StopSimulation()
     Globals.demo_robot = Globals.demo_env.GetRobot("pr2")
@@ -298,7 +299,7 @@ def main():
         grabber.startRGBD()
 
     Globals.viewer = trajoptpy.GetViewer(Globals.env)
-
+    print "j"
     #####################
 
     while True:
@@ -345,9 +346,9 @@ def main():
             old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
             new_xyz, _ = fk.key_points_to_points(new_keypoints)
         
-        
-        handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
-        handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
+        if len(new_xyz) > 0:
+            handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
+            handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
 
 
         if rigid:
@@ -369,13 +370,14 @@ def main():
         
         #f = registration.ThinPlateSpline() XXX XXX
         
-        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
+        if len(new_xyz) > 0:
+            handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
         
         
         # TODO plot
         # plot_warping_and_trajectories(f, old_xyz, new_xyz, old_ee_traj, new_ee_traj)
     
-        use_needle = "%s_grab" in seg_info["extra_information"] and "needle_tip_transform" in seg_info['key_points']
+        use_needle = "needle_tip_transform" in seg_info['key_points'] and "%s_grab" in seg_info['extra_information']
     
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
         success = True
@@ -409,7 +411,11 @@ def main():
                 else:
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     link = Globals.robot.GetLink(ee_link_name)
-                    old_ee_traj = asarray(seg_info[ee_link_name]["hmat"])
+                    demo_link = Globals.demo_robot.GetLink(ee_link_name)
+                    old_ee_traj = []
+                    for row in ds_traj:
+                        Globals.demo_robot.SetActiveDOFValues(row)
+                        old_ee_traj.append(demo_link.GetTransform())
                     
                 old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
 
@@ -499,7 +505,7 @@ def openloop():
                 set_gripper_maybesim(lr, binarize_gripper(seg_info["%s_gripper_joint"%lr][i_start]))
                 
             if len(bodypart2traj) > 0:
-                exec_traj_maybesim(bodypart2traj)
+                exec_traj_maybesim(bodypart2traj, speed_factor=0.1)
 
 if args.openloop:
     openloop()

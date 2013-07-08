@@ -5,9 +5,13 @@ Misc functions that are useful in the top-level task-execution scripts
 
 def request_int_in_range(too_high_val):
     while True:
-        choice_ind = int(raw_input())
-        if choice_ind <= too_high_val:
-            return choice_ind
-        else:
-            print "invalid selection. try again"
-    
+        try:
+            choice_ind = int(raw_input())
+            if choice_ind <= too_high_val:
+                return choice_ind
+        except KeyboardInterrupt:
+            print "Found Keyboard Interrupt"
+            exit(0)
+        except:
+            pass
+        print "Invalid selection. Try again."

@@ -154,6 +154,8 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
             group["ree"] = seg_info["ree"]
         if seg_info.get('lee'):
             group["lee"] = seg_info["lee"] 
+        if seg_info.get('extra_information'):
+            group["extra_information"] = seg_info["extra_information"]
 
 def get_video_frames(video_dir, frame_stamps):
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))

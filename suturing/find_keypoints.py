@@ -10,7 +10,7 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
     # initialize with basic information of start, stop, look times and description 
     seg_infos = bp.joy_to_annotations(stamps, meanings)
 
-    frame_stamps = [t for (t, m) in zip(stamps, meanings) if m=='look']
+    frame_stamps = [t["look"] for t in seg_infos]
     key_rgb_imgs, _ = bp.get_video_frames(video_dir, frame_stamps)
 
     bag = rosbag.Bag(bagfile)
@@ -33,14 +33,14 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
             elif kp in keypoint_info.keys():
                 if yes_or_no('Already have information for %s. Overwrite?'%kp):
                     kp_loc = svi.find_kp_processing(kp, frame_stamps[i], Twk, video_dir)
-                    if not kp_loc:
+                    if kp_loc is None:
                         print 'Something went wrong with keypoint selection.'
                     else:
                         keypoint_info[svi.KEYPOINTS_FULL[kp]] = kp_loc
                         print 'Key point %s saved for this segment.'%kp
             else:
                 kp_loc = svi.find_kp_processing(kp, frame_stamps[i], Twk, video_dir)
-                if not kp_loc:
+                if kp_loc is None:
                     print 'Something went wrong with keypoint selection.'
                 else:
                     keypoint_info[svi.KEYPOINTS_FULL[kp]] = kp_loc 
@@ -49,8 +49,8 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
             if not yes_or_no('Enter another key point for this segment?'):
                 break
         
+        seg_infos[i]['extra_information'] = []
         if yes_or_no('Is the needle-tip the relevant end effector for this segment?'):
-            seg_infos[i]['extra_information'] = []
             if yes_or_no('Is the needle in the left gripper?'):
                 seg_infos[i]['extra_information'].append("l_grab")
             else:
@@ -72,7 +72,7 @@ def get_keypoints_execution (grabber, keys, tfm):
             print "Find key point %s."%svi.KEYPOINTS_SHORT[key]
             kp_loc =  svi.find_kp_execution(key, grabber, tfm)
             
-            if not kp_loc:
+            if kp_loc is None:
                 print "Something went wrong with key-point selection. Try again."
             else:
                 keypoints[key] = kp_loc

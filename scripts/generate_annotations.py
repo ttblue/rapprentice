@@ -4,7 +4,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("bagfile")
 parser.add_argument("outfile")
-parser.add_argument("--annotation_func", default="normal_gen")
+parser.add_argument("--annotation_func", default="suture_gen")
 args = parser.parse_args()
 from rapprentice import bag_proc
 
