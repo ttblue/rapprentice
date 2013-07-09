@@ -134,6 +134,7 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
         xy = None
         done = False
         def callback(self, event, x, y, flags, param):
+            print 11
             if self.done:
                 return
             elif event == cv2.EVENT_LBUTTONDOWN:
@@ -148,10 +149,15 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
 
     for i in xrange(2):
         gc = GetClick()
+        print WIN_NAME, 1
+        t = True
+        cv2.imshow(WIN_NAME, rgb_plot)
         cv2.setMouseCallback(WIN_NAME, gc.callback)
         while not gc.done:
-            cv2.imshow(WIN_NAME, rgb_plot)
-            cv2.waitKey(10)
+            if t:
+                print WIN_NAME, 2
+                t = False
+            cv2.waitKey(100)
         rect_corners.append(gc.xy)
 
     xy_tl = np.array(rect_corners).min(axis=0)
@@ -160,7 +166,7 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
     cv2.rectangle(rgb_plot, tuple(xy_tl), tuple(xy_br), (0, 255, 0))
     cv2.imshow(WIN_NAME, rgb_plot)
     cv2.waitKey(100)
-
+    
     colmin, rowmin = xy_tl
     colmax, rowmax = xy_br
     
@@ -201,7 +207,7 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
     cv2.imshow(WIN_NAME, rgb_plot)
     cv2.waitKey(100)    
 
-    print 'Needle end location', xyz_avg
+    print 'Key point location', xyz_avg
  
     return xyz_avg, valid_pts
 
@@ -355,7 +361,8 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
                 else:
                     print 'Try to find the %s again.'%KEYPOINTS_FULL[kp]
             else:
-                return kp_loc.tolist()
+                return
+            kp_loc.tolist()
     
     elif kp == 'none':
         return [0,0,0]
@@ -374,7 +381,7 @@ def find_kp_execution (kp, grabber, tfm):
         while True:
             xyz_tfs, key_rgb_imgs = get_kp_clouds(grabber, num_clouds, tfm)
             kp_loc, valid_pts = find_kp_red_block(kp, xyz_tfs, key_rgb_imgs)
-        
+            print 1
             if valid_pts > 0:
                 return kp_loc
             else:

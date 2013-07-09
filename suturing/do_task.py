@@ -46,12 +46,15 @@ from rapprentice import pr2_trajectories, retiming, math_utils as mu
 from pr2 import PR2
 import rospy
 
+import subprocess
+
 import cloudprocpy, trajoptpy, json, openravepy
 import numpy as np, h5py
 from numpy import asarray
 
-import find_keypoints as fk   
+import find_keypoints as fk
 
+subprocess.call("killall XnSensorServer", shell=True)
     
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
@@ -138,8 +141,12 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
                 "rot_coeff":[20,20,20]
              }
             })
-
+    
+    
+    
     s = json.dumps(request)
+    print s
+    print type(s)
     prob = trajoptpy.ConstructProblem(s, Globals.env) # create object that stores optimization problem
     result = trajoptpy.OptimizeProblem(prob) # do optimization
     traj = result.GetTraj()    
@@ -298,7 +305,7 @@ def main():
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
 
-    Globals.viewer = trajoptpy.GetViewer(Globals.env)
+    #Globals.viewer = trajoptpy.GetViewer(Globals.env)
     print "j"
     #####################
 
@@ -356,10 +363,9 @@ def main():
             rel_tfm = new_xyz.dot(np.linalg.inv(old_xyz))
             f.init_rigid_tfm(rel_tfm)
         elif len(new_xyz) > 0:
-                f = registration.ThinPlateSpline()
                 #f.fit(demopoints_m3, newpoints_m3, 10,10)
                 # TODO - check if this regularization on bending is correct
-                f.fit(old_xyz, new_xyz, bend_coef=0.01,rot_coef=.01)
+                f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=1e-3,rot_coef=.01)
                 np.set_printoptions(precision=3)
                 print "nonlinear part", f.w_ng
                 print "affine part", f.lin_ag
@@ -416,6 +422,8 @@ def main():
                     for row in ds_traj:
                         Globals.demo_robot.SetActiveDOFValues(row)
                         old_ee_traj.append(demo_link.GetTransform())
+                
+                old_ee_traj = np.asarray(old_ee_traj)
                     
                 old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
 

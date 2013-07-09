@@ -25,7 +25,6 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
         Twk = svi.find_Twk(key_joints[i], jnames)
         
         while True:
-            print key_rgb_imgs[i].shape
             svi.show_pointclouds([key_rgb_imgs[i]])
             kp = raw_input('Which key points are important for this segment?\nChoices are: ' + str(svi.KEYPOINTS) + '.\n Please only enter one key point at a time: ')
             if kp not in svi.KEYPOINTS:
@@ -69,6 +68,7 @@ def get_keypoints_execution (grabber, keys, tfm):
     keypoints= {}
     for key in keys:
         while True:
+            #svi.show_pointclouds([key_rgb_imgs[i]])
             print "Find key point %s."%svi.KEYPOINTS_SHORT[key]
             kp_loc =  svi.find_kp_execution(key, grabber, tfm)
             
