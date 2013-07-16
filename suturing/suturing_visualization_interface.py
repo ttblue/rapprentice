@@ -96,9 +96,9 @@ def find_kp_single_cloud (kp, xyz_tf, rgb_img):
     #print colorize('If this keypont is occluded, select the image window and press any key.', 'red', bold=True)
     
     gc = GetClick()
+    cv2.imshow(WIN_NAME, rgb_img)
     cv2.setMouseCallback(WIN_NAME, gc.callback)
     while not gc.done:
-        cv2.imshow(WIN_NAME, rgb_img)
         k = cv2.waitKey(100)
         #TODO
         #if k == -1:
@@ -134,7 +134,6 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
         xy = None
         done = False
         def callback(self, event, x, y, flags, param):
-            print 11
             if self.done:
                 return
             elif event == cv2.EVENT_LBUTTONDOWN:
@@ -147,11 +146,9 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
     rgb_plot = rgb_imgs[0].copy()
     print colorize("Click at the corners of a rectangle which encompasses the red block.", 'red', bold=True)
 
+    cv2.imshow(WIN_NAME, rgb_plot)
     for i in xrange(2):
         gc = GetClick()
-        print WIN_NAME, 1
-        t = True
-        cv2.imshow(WIN_NAME, rgb_plot)
         cv2.setMouseCallback(WIN_NAME, gc.callback)
         while not gc.done:
             if t:
@@ -232,11 +229,11 @@ def find_needle_tip (kp, xyz_tfs, rgb_imgs):
     rgb_plot = rgb_imgs[0].copy()
     print colorize("click at the corners of a rectangle which encompasses the needle tip", 'red', bold=True)
 
+    cv2.imshow(WIN_NAME, rgb_plot)
     for i in xrange(2):
         gc = GetClick()
         cv2.setMouseCallback(WIN_NAME, gc.callback)
         while not gc.done:
-            cv2.imshow(WIN_NAME, rgb_plot)
             cv2.waitKey(10)
         rect_corners.append(gc.xy)
 

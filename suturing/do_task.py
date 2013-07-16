@@ -129,6 +129,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     }
         
     poses = [openravepy.poseFromMatrix(hmat) for hmat in new_hmats]
+    
     for (i_step,pose) in enumerate(poses):
         request["costs"].append(
             {"type":"pose",
@@ -138,7 +139,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
                 "link":ee_linkname,
                 "timestep":i_step,
                 "pos_coeffs":[20,20,20],
-                "rot_coeff":[20,20,20]
+                "rot_coeffs":[20,20,20]
              }
             })
     
@@ -314,7 +315,7 @@ def main():
     
         redprint("Acquire point cloud")
         if args.fake_data_segment:
-            new_keypoints = np.squeeze(demofile[args.fake_data_segment]["key_points"])
+            new_keypoints = demofile[args.fake_data_segment]["key_points"]
         else:    
             Globals.pr2.rarm.goto_posture('side')
             Globals.pr2.larm.goto_posture('side')            
@@ -343,7 +344,7 @@ def main():
         
         # TODO: Have a check for only transformations -> rigid transformations
         if args.fake_data_segment:
-            if seg_info['key_points'].sort() != new_keypoints.sort():
+            if seg_info['key_points'].keys().sort() != new_keypoints.keys().sort():
                 print "Keypoints don't match."
                 exit(1)
             old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
@@ -424,7 +425,7 @@ def main():
                         old_ee_traj.append(demo_link.GetTransform())
                 
                 old_ee_traj = np.asarray(old_ee_traj)
-                    
+                
                 old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
 
                 if arm_moved(old_joint_traj):
@@ -436,7 +437,7 @@ def main():
                 
                     if args.execution: Globals.pr2.update_rave()
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
-                                                      link, new_ee_traj, old_joint_traj)
+                                                      link, old_ee_traj, old_joint_traj)
                     # (robot, manip_name, ee_link, new_hmats, old_traj):
                     part_name = {"l":"larm", "r":"rarm"}[lr]
                     bodypart2traj[part_name] = new_joint_traj
