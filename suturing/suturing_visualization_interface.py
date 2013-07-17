@@ -325,20 +325,21 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
                 print 'Could not find enough points. Trying again with more images.'
 
     elif kp == 'nt':
-        num_clouds = 30
+        time_added = 0
         while True:
-            key_rgb_imgs, key_depth_imgs = bp.get_num_frames(video_dir, frame_stamp, num_clouds)
-            xyz_tfs = [transform_pointclouds(img, tfm) for img in key_depth_imgs]
-            kp_loc = find_needle_tip(kp, xyz_tfs, key_rgb_imgs)
-            
-            if kp_loc[2] > 0.8:
+            key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
+            xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
+            kp_loc = tff.find_keypoint_position_processing(kp, xyz_tf, key_rgb_imgs[0])
+
+            if kp_loc is not None and kp_loc[2] > 0.8:
                 return kp_loc
             else:
-                num_clouds += 5
-                if num_clouds > 50:
-                    print 'Could not find valid needle tip with even 50 clouds. Something seems to be wrong.'
+                time_added += 1
+                if time_added > 15:
+                    print 'Could not find valid needle tip in 15 attempts. Something seems to be wrong.'
                     return None
-                print 'Needle tip too low. Trying again with more images.'
+                if kp_loc:
+                    print 'Needle tip too low. Try again.'
                 
     elif kp == 'ntt':
         time_added = 0
@@ -346,6 +347,7 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
             key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
             xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
             kp_loc = tff.find_keypoint_transform_processing(kp, xyz_tf, key_rgb_imgs[0])
+
             
             if kp_loc is None:
                 time_added += 1
@@ -386,19 +388,21 @@ def find_kp_execution (kp, grabber, tfm):
                 print 'Could not find enough points. Trying again with more images.'
 
     elif kp == 'nt':
-        num_clouds = 30
+        attempts = 0
         while True:
-            xyz_tfs, key_rgb_imgs = get_kp_clouds(grabber, num_clouds, tfm)
-            kp_loc = find_needle_tip(kp, xyz_tfs, key_rgb_imgs)
+            #xyz_tfs, key_rgb_imgs = get_kp_clouds(grabber, num_clouds, tfm)
+            #kp_loc = find_needle_tip(kp, xyz_tfs, key_rgb_imgs)
+            kp_loc = tff.find_keypoint_position_execution(kp, "not_sure")
             
-            if kp_loc[2] > 0.8:
+            if kp_loc is not None and kp_loc[2] > 0.8:
                 return kp_loc
             else:
-                num_clouds += 5
-                if num_clouds > 50:
-                    print 'Could not find valid needle tip with even 50 clouds. Something seems to be wrong.'
+                attempts += 1
+                if attempts > 15:
+                    print 'Could not find valid needle tip in 15 attempts. Something seems to be wrong.'
                     return None
-                print 'Needle tip too low. Trying again with more images.'
+                if kp_loc:
+                    print 'Needle tip too low. Try again.'
 
     elif kp == 'ntt':
         attempts = 0
@@ -409,7 +413,7 @@ def find_kp_execution (kp, grabber, tfm):
             if kp_loc is None:
                 attempts += 1
                 if attempts > 15:
-                    print 'Could not find valid tip transform. Something seems to be wrong.'
+                    print 'Could not find valid tip transform in 15 attempts. Something seems to be wrong.'
                     return None
                 else:
                     print 'Try to find the %s again.'%KEYPOINTS_FULL[kp]

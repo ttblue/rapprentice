@@ -54,13 +54,13 @@ def doneCallback (feedback):
     global done, found
     done = True
     found = True
-    if not outer_RVIZ:
+    if not outer_RVIZ and app is not None:
         app.exit()
 
 def redoCallback (feedback):
     global done, found
     done = True
-    if not outer_RVIZ:
+    if not outer_RVIZ and app is not None:
         app.exit()
 
 def nullCallback (feedback):
@@ -92,7 +92,7 @@ def makeBoxControl( msg ):
 # Marker Creation
 
 def make6DofMarker( fixed ):
-    global marker_pos, server
+    global server
     int_marker = InteractiveMarker()
     int_marker.header.frame_id = "/base_footprint"
     int_marker.scale = 0.05
@@ -183,9 +183,60 @@ def make6DofMarker( fixed ):
     server.insert(int_marker, nullCallback)
     menu_handler.apply( server, int_marker.name )
 
+def makeMoveMarker( ):
+    global server
+    int_marker = InteractiveMarker()
+    int_marker.header.frame_id = "/base_footprint"
+    int_marker.scale = 0.05
+
+    int_marker.name = "pos_marker"
+    int_marker.description = "Position finder"
+
+    # insert a box
+    makeBoxControl(int_marker)
+
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 1
+    control.orientation.y = 0
+    control.orientation.z = 0
+    control.name = "move_x"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 1
+    control.orientation.z = 0
+    control.name = "move_z"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 0
+    control.orientation.z = 1
+    control.name = "move_y"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    int_marker.controls.append(control)
+
+    # make one control using default visuals
+    control = InteractiveMarkerControl()
+    control.interaction_mode = InteractiveMarkerControl.MENU
+    control.description="Options"
+    control.name = "menu_only_control"
+    int_marker.controls.append(copy.deepcopy(control))
+
+    server.insert(int_marker, nullCallback)
+    menu_handler.apply( server, int_marker.name )
+
 
 def find_keypoint_transform_processing (kp, xyz, rgb):
     global server, app, done, found
+    app = None
     found = False
     done = False
     
@@ -238,6 +289,7 @@ def find_keypoint_transform_execution (kp, cloud_topic):
     global server, app, found, done
     found = False
     done = False
+    app = None
     
     if rospy.get_name() == '/unnamed':
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
@@ -255,7 +307,7 @@ def find_keypoint_transform_execution (kp, cloud_topic):
     if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
         outer_RVIZ = True
     else:
-        outer_RVIZ = True
+        outer_RVIZ = False
         app = myviz.QApplication( [""] )
         viz = myviz.MyViz()
         viz.resize( 1000, 1000 )
@@ -281,3 +333,105 @@ def find_keypoint_transform_execution (kp, cloud_topic):
     rospy.signal_shutdown('Finished finding transform')
     
     return conversions.pose_to_hmat(marker.pose)
+
+
+def find_keypoint_position_processing (kp, xyz, rgb):
+    global server, app, done, found
+    found = False
+    done = False
+    app = None
+    
+    if rospy.get_name() == '/unnamed':
+        rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
+        
+    pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)
+    server = InteractiveMarkerServer("basic_controls")
+
+    menu_handler.insert("Done?", callback=doneCallback)
+    menu_handler.insert("Re-try with PC 1 second later?", callback=redoCallback)
+
+    pcmsg = ru.xyzrgb2pc(xyz, rgb, 'base_footprint')
+
+    makeMoveMarker()
+
+    server.applyChanges()
+    
+    if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
+        outer_RVIZ = True
+    else:
+        outer_RVIZ = False
+        app = myviz.QApplication( [""] )
+        viz = myviz.MyViz()
+        viz.resize( 1000, 1000 )
+        viz.show()
+
+    p = rospy.Rate(10)
+    while not rospy.is_shutdown() and not done:
+        pcpub.publish(pcmsg)
+        if not outer_RVIZ:
+            app.processEvents()
+        p.sleep()
+    
+    # Unhappy with data
+    if not found:
+        return None
+    
+    marker = server.get("pos_marker")
+    
+    pos = marker.pose.position
+    print "Position of the marker for %s"%kp
+    print pos
+    
+    rospy.signal_shutdown('Finished finding transform')
+    
+    return [pos.x, pos.y, pos.z]
+
+def find_keypoint_position_execution (kp, cloud_topic):
+    global server, app, found, done
+    found = False
+    done = False
+    app = None
+    
+    if rospy.get_name() == '/unnamed':
+        rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
+        
+    server = InteractiveMarkerServer("basic_controls")
+
+    menu_handler.insert("Done?", callback=doneCallback)
+    menu_handler.insert("Re-try?", callback=redoCallback)
+
+    makeMoveMarker()
+
+    server.applyChanges()
+    
+    if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
+        outer_RVIZ = True
+    else:
+        outer_RVIZ = False
+        app = myviz.QApplication( [""] )
+        viz = myviz.MyViz()
+        viz.resize( 1000, 1000 )
+        viz.show()
+
+    print "Listen to the point_cloud data on: %s"%cloud_topic
+    
+    p = rospy.Rate(10)
+    while not rospy.is_shutdown() and not done:
+        if not outer_RVIZ:
+            app.processEvents()
+        p.sleep()
+    
+    # Unhappy with data
+    if not found:
+        return None
+    
+    marker = server.get("pos_marker")
+    
+    pos = marker.pose.position
+    print "Position of the marker for %s"%kp
+    print pos
+    
+    rospy.signal_shutdown('Finished finding transform')
+    
+    return [pos.x, pos.y, pos.z]
+
