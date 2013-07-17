@@ -151,9 +151,6 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
         gc = GetClick()
         cv2.setMouseCallback(WIN_NAME, gc.callback)
         while not gc.done:
-            if t:
-                print WIN_NAME, 2
-                t = False
             cv2.waitKey(100)
         rect_corners.append(gc.xy)
 

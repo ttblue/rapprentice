@@ -453,7 +453,7 @@ def main():
             #trajoptpy.GetViewer(Globals.env).Idle()
         
             if len(bodypart2traj) > 0:
-                exec_traj_maybesim(bodypart2traj)
+                exec_traj_maybesim(bodypart2traj, speed_factor=0.1)
         
             # TODO measure failure condtions
 

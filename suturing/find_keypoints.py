@@ -70,7 +70,7 @@ def get_keypoints_execution (grabber, keys, tfm):
         while True:
             #svi.show_pointclouds([key_rgb_imgs[i]])
             print "Find key point %s."%svi.KEYPOINTS_SHORT[key]
-            kp_loc =  svi.find_kp_execution(key, grabber, tfm)
+            kp_loc =  svi.find_kp_execution(svi.KEYPOINTS_SHORT[key], grabber, tfm)
             
             if kp_loc is None:
                 print "Something went wrong with key-point selection. Try again."
