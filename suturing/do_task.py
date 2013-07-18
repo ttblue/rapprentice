@@ -245,6 +245,17 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
 ###################
 
 
+def find_common_marker_poses (poses1, poses2):
+    kp1, kp2 = {}, {}
+    common_id = np.intersect1d(poses1.keys(), poses2.keys())
+    
+    for id in common_id:
+        kp1[id] = poses1[id]
+        kp2[id] = poses2[id]
+        
+    return kp1, kp2
+
+
 class Globals:
     # Rave
     env = None
@@ -258,7 +269,6 @@ class Globals:
 
     # PR2 control
     pr2 = None
-    
     
 
 def setup_needle_traj (lr, arm_traj, old_tfm, new_tfm):
@@ -314,9 +324,7 @@ def main():
         
     
         redprint("Acquire point cloud")
-        if args.fake_data_segment:
-            new_keypoints = demofile[args.fake_data_segment]["key_points"]
-        else:    
+        if not args.fake_data_segment:    
             #Globals.pr2.rarm.goto_posture('side')
             #Globals.pr2.larm.goto_posture('side')            
             #Globals.pr2.join_all()
@@ -342,20 +350,37 @@ def main():
         
         # TODO: Have a check for only transformations -> rigid transformations
         if args.fake_data_segment:
+            new_keypoints = demofile[args.fake_data_segment]["key_points"]
+            new_marker_poses = demofile[args.fake_data_segment]["ar_marker_poses"]
             if seg_info['key_points'].keys().sort() != new_keypoints.keys().sort():
                 print "Keypoints don't match."
                 exit(1)
-            old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
-            new_xyz, _ = fk.key_points_to_points(new_keypoints)
         else:
-            new_keypoints = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k)
-            old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
-            new_xyz, _ = fk.key_points_to_points(new_keypoints)
-        
+            new_keypoints, new_marker_poses = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k)
+
+
+
+        # Finding all the points
+        old_marker_poses = seg_info['ar_marker_poses']
+        # Points from keypoints
+        old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
+        new_xyz, _ = fk.key_points_to_points(new_keypoints)
+
+        # Points from markers
+        old_common_poses, new_common_poses = find_common_marker_poses(old_marker_poses, new_marker_poses)
+        old_m_xyz, _ = fk.key_points_to_points(old_common_poses)
+        new_m_xyz, _ = fk.key_points_to_points(new_common_poses)
+
+        if len(old_m_xyz) > 0 and rigid: rigid = False
+
+        old_xyz.extend(old_m_xyz)
+        new_xyz.extend(new_m_xyz)        
+
+
+
         if len(new_xyz) > 0:
             handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
             handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
-
 
         if rigid:
             f = registration.ThinPlateSpline()

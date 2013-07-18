@@ -1,17 +1,39 @@
 import rosbag
+import rospy
 import numpy as np
+
+import roslib; roslib.load_manifest('ar_track_service')
+from ar_track_service.srv import MarkerPositions, MarkerPositionsRequest, MarkerPositionsResponse
+from ar_track_alvar.msg import AlvarMarkers
+from sensor_msgs.msg import PointCloud2
+
 
 # Could be generalized to any interface, as long as they have the appropriate things.
 import suturing_visualization_interface as svi
-from rapprentice import bag_proc as bp
+from rapprentice import bag_proc as bp, ros_utils as ru, conversions
 from rapprentice.yes_or_no import yes_or_no
+
+def get_ar_marker_poses (rgb, depth, tfm):
+    getMarkers = rospy.ServiceProxy("getMarkers", MarkerPositions)
+    
+    xyz = svi.transform_pointclouds(depth, tfm)
+    pc = ru.xyzrgb2pc(xyz, rgb, '/base_footprint')
+    
+    req = MarkerPositionsRequest()
+    req.pc = pc
+    
+    marker_tfm = {}
+    res = getMarkers(req)
+    for marker in res.markers:
+        marker_tfm[marker.id] = conversions.pose_to_hmat(marker.pose).tolist()
+            
 
 def create_annotations(stamps, meanings, bagfile, video_dir):
     # initialize with basic information of start, stop, look times and description 
     seg_infos = bp.joy_to_annotations(stamps, meanings)
 
     frame_stamps = [t["look"] for t in seg_infos]
-    key_rgb_imgs, _ = bp.get_video_frames(video_dir, frame_stamps)
+    key_rgb_imgs, key_depth_imgs = bp.get_video_frames(video_dir, frame_stamps)
 
     bag = rosbag.Bag(bagfile)
     jnames, jstamps, traj = bp.extract_joints(bag)
@@ -48,15 +70,17 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
             if not yes_or_no('Enter another key point for this segment?'):
                 break
         
+        seg_infos[i]['key_points'] = keypoint_info        
+        seg_infos[i]['ar_marker_poses'] = get_ar_marker_poses(key_rgb_imgs[i], key_depth_imgs[i], Twk)
+        
         seg_infos[i]['extra_information'] = []
         if yes_or_no('Is the needle-tip the relevant end effector for this segment?'):
             if yes_or_no('Is the needle in the left gripper?'):
                 seg_infos[i]['extra_information'].append("l_grab")
             else:
                 seg_infos[i]['extra_information'].append("r_grab")
-        
-        seg_infos[i]['key_points'] = keypoint_info
 
+        
     return seg_infos
 
 
@@ -77,8 +101,12 @@ def get_keypoints_execution (grabber, keys, tfm):
             else:
                 keypoints[key] = kp_loc
                 break
+
+    # Potentially make this more robust
+    rgb, depth = grabber.getRGBD()
+    marker_poses = get_ar_marker_poses (rgb, depth, tfm)
     
-    return keypoints
+    return keypoints, marker_poses
 
 
 def key_points_to_points (keypoints):
@@ -107,8 +135,3 @@ def key_points_to_points (keypoints):
             points.append(loc)
     return np.array(points), False
 
-
-def get_ar_marker_pos (grabber):
-    
-    
-    
