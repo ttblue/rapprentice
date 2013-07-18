@@ -38,8 +38,7 @@ from interactive_markers.interactive_marker_server import *
 from interactive_markers.menu_handler import *
 from tf.broadcaster import TransformBroadcaster
 
-from rapprentice import ros_utils as ru, bag_proc as bp, clouds,\
-                        berkeley_pr2, conversions
+from rapprentice import ros_utils as ru, conversions
 from rapprentice.yes_or_no import yes_or_no
 import myviz
 
@@ -283,7 +282,7 @@ def find_keypoint_transform_processing (kp, xyz, rgb):
     
     rospy.signal_shutdown('Finished finding transform')
     
-    return conversions.pose_to_hmat(marker.pose)
+    return conversions.pose_to_hmat(marker.pose).tolist()
 
 def find_keypoint_transform_execution (kp, cloud_topic):
     global server, app, found, done
@@ -332,7 +331,7 @@ def find_keypoint_transform_execution (kp, cloud_topic):
     
     rospy.signal_shutdown('Finished finding transform')
     
-    return conversions.pose_to_hmat(marker.pose)
+    return conversions.pose_to_hmat(marker.pose).tolist()
 
 
 def find_keypoint_position_processing (kp, xyz, rgb):
