@@ -106,3 +106,9 @@ def key_points_to_points (keypoints):
         elif key != "none":
             points.append(loc)
     return np.array(points), False
+
+
+def get_ar_marker_pos (grabber):
+    
+    
+    

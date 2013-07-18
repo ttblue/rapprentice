@@ -317,12 +317,10 @@ def main():
         if args.fake_data_segment:
             new_keypoints = demofile[args.fake_data_segment]["key_points"]
         else:    
-            Globals.pr2.rarm.goto_posture('side')
-            Globals.pr2.larm.goto_posture('side')            
-            Globals.pr2.join_all()
-            
-            Globals.pr2.update_rave()
-            
+            #Globals.pr2.rarm.goto_posture('side')
+            #Globals.pr2.larm.goto_posture('side')            
+            #Globals.pr2.join_all()
+            #Globals.pr2.update_rave()
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)            
 
     
