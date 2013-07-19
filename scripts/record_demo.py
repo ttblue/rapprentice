@@ -17,6 +17,8 @@ import os.path as osp
 import itertools
 import yaml
 
+import rospy
+
 started_bag = False
 started_video = False
 
@@ -46,6 +48,7 @@ else:
             break
         print demo_name
 
+rospy.init_node('record_demo')
 subprocess.call("killall XnSensorServer", shell=True)
 
 try:
