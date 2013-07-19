@@ -7,13 +7,17 @@ from ar_track_service.srv import MarkerPositions, MarkerPositionsRequest, Marker
 from ar_track_alvar.msg import AlvarMarkers
 from sensor_msgs.msg import PointCloud2
 
-
 # Could be generalized to any interface, as long as they have the appropriate things.
 import suturing_visualization_interface as svi
 from rapprentice import bag_proc as bp, ros_utils as ru, conversions
 from rapprentice.yes_or_no import yes_or_no
+import rospy
 
 def get_ar_marker_poses (rgb, depth, tfm):
+    
+    if rospy.get_name() == '/unnamed':
+        rospy.init_node('keypoints')
+    
     getMarkers = rospy.ServiceProxy("getMarkers", MarkerPositions)
     
     xyz = svi.transform_pointclouds(depth, tfm)
@@ -24,8 +28,12 @@ def get_ar_marker_poses (rgb, depth, tfm):
     
     marker_tfm = {}
     res = getMarkers(req)
-    for marker in res.markers:
-        marker_tfm[marker.id] = conversions.pose_to_hmat(marker.pose).tolist()
+    for marker in res.markers.markers:
+        marker_tfm[marker.id] = conversions.pose_to_hmat(marker.pose.pose).tolist()
+    
+    print "Marker ids found: ", marker_tfm.keys()
+    
+    return marker_tfm
             
 
 def create_annotations(stamps, meanings, bagfile, video_dir):

@@ -90,7 +90,7 @@ def binarize_gripper(angle):
 
 
     
-def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
+def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixed=True):
         
     n_steps = len(new_hmats)
     assert old_traj.shape[0] == n_steps
@@ -98,7 +98,8 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     
     arm_inds  = robot.GetManipulator(manip_name).GetArmIndices()
     robot.SetActiveDOFs(arm_inds)
-
+    cur_dofs = robot.GetActiveDOFValues()
+    
     ee_linkname = ee_link.GetName()
     
     init_traj = old_traj.copy()
@@ -108,7 +109,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         "basic_info" : {
             "n_steps" : n_steps,
             "manip" : manip_name,
-            "start_fixed" : False
+            "start_fixed" : start_fixed
         },
         "costs" : [
         {
@@ -127,6 +128,9 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
             "data":[x.tolist() for x in init_traj]
         }
     }
+    
+    if start_fixed and len(init_traj)>0:
+        request["init_info"]["data"][0] = cur_dofs.tolist()
         
     poses = [openravepy.poseFromMatrix(hmat) for hmat in new_hmats]
     
@@ -305,12 +309,13 @@ def main():
         Globals.robot = Globals.env.GetRobots()[0]
         
     import trajoptpy.make_kinbodies as mk
+    Globals.env.Load("/home/sibi/sandbox/rapprentice/objects/table.xml")
     Globals.needle_tip = mk.create_spheres(Globals.env, [(0,0,0)], radii=0.02, name="needle_tip")
     Globals.demo_env = Globals.env.CloneSelf(1)
     Globals.demo_env.StopSimulation()
     Globals.demo_robot = Globals.demo_env.GetRobot("pr2")
     Globals.demo_needle_tip = Globals.demo_env.GetKinBody("needle_tip")
-    Globals.env.Load("/home/sibi/sandbox/rapprentice/objects/table.xml")
+    
 
     if not args.fake_data_segment:
         grabber = cloudprocpy.CloudGrabber()
@@ -351,7 +356,10 @@ def main():
         # TODO: Have a check for only transformations -> rigid transformations
         if args.fake_data_segment:
             new_keypoints = demofile[args.fake_data_segment]["key_points"]
-            new_marker_poses = demofile[args.fake_data_segment]["ar_marker_poses"]
+            new_marker_poses_str = demofile[args.fake_data_segment]["ar_marker_poses"]
+            new_marker_poses = {}
+            for id in new_marker_poses_str:
+                new_marker_poses[int(id)] = new_marker_poses_str[id]
             if seg_info['key_points'].keys().sort() != new_keypoints.keys().sort():
                 print "Keypoints don't match."
                 exit(1)
@@ -361,24 +369,34 @@ def main():
 
 
         # Finding all the points
-        old_marker_poses = seg_info['ar_marker_poses']
+        old_marker_poses_str = seg_info['ar_marker_poses']
+        old_marker_poses = {}
+        for id in old_marker_poses_str:
+            old_marker_poses[int(id)] = old_marker_poses_str[id]
         # Points from keypoints
         old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
         new_xyz, _ = fk.key_points_to_points(new_keypoints)
 
         # Points from markers
         old_common_poses, new_common_poses = find_common_marker_poses(old_marker_poses, new_marker_poses)
-        old_m_xyz, _ = fk.key_points_to_points(old_common_poses)
+        old_m_xyz, rigid_m = fk.key_points_to_points(old_common_poses)
         new_m_xyz, _ = fk.key_points_to_points(new_common_poses)
 
         if len(old_m_xyz) > 0 and rigid: rigid = False
+        elif rigid_m and not old_xyz.any(): rigid = True
 
-        old_xyz.extend(old_m_xyz)
-        new_xyz.extend(new_m_xyz)        
-
-
-
-        if len(new_xyz) > 0:
+        # concatenate points
+        if old_xyz.any() and old_m_xyz.any():
+            old_xyz = np.r_[old_xyz, old_m_xyz]
+        elif old_m_xyz.any():
+            old_xyz = old_m_xyz
+        
+        if new_xyz.any() and new_m_xyz.any():
+            new_xyz = np.r_[new_xyz, new_m_xyz]
+        elif new_m_xyz.any():
+            new_xyz = new_m_xyz
+            
+        if new_xyz.any() and new_xyz.shape != (4,4):
             handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
             handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
 
@@ -398,9 +416,10 @@ def main():
         else:
             f = registration.ThinPlateSpline()            
         
+        
         #f = registration.ThinPlateSpline() XXX XXX
         
-        if len(new_xyz) > 0:
+        if new_xyz.any() and new_xyz.shape != (4,4):
             handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
         
         
@@ -460,7 +479,7 @@ def main():
                 
                     if args.execution: Globals.pr2.update_rave()
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
-                                                      link, old_ee_traj, old_joint_traj)
+                                                      link, new_ee_traj, old_joint_traj)
                     # (robot, manip_name, ee_link, new_hmats, old_traj):
                     part_name = {"l":"larm", "r":"rarm"}[lr]
                     bodypart2traj[part_name] = new_joint_traj
