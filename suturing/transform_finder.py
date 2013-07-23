@@ -38,9 +38,12 @@ from interactive_markers.interactive_marker_server import *
 from interactive_markers.menu_handler import *
 from tf.broadcaster import TransformBroadcaster
 
-from rapprentice import ros_utils as ru, conversions
+from rapprentice import ros_utils as ru, conversions, clouds, berkeley_pr2
 from rapprentice.yes_or_no import yes_or_no
 import myviz
+
+from geometry_msgs.msg import Point
+from std_msgs.msg import ColorRGBA
 
 server = None
 app = None
@@ -65,13 +68,79 @@ def redoCallback (feedback):
 def nullCallback (feedback):
     pass
 
-def makeBox( msg ):
+
+def createPointAxes (marker, d=0.1, n=50.0):
+        
+    t = 0.0
+    while t < d:
+        p1, p2, p3 = Point(), Point(), Point()
+        c1, c2, c3 = ColorRGBA(), ColorRGBA(), ColorRGBA()
+        
+        p1.x = p2.y = p3.z = t
+        c1.r = c2.g = c3.b = 1
+        c1.a = c2.a = c3.a = 0.5
+        
+        marker.points.append(p1)
+        marker.colors.append(c1)
+        marker.points.append(p2)
+        marker.colors.append(c2)
+        marker.points.append(p3)
+        marker.colors.append(c3)
+        
+        t += d/n
+
+def createPointLine (marker, d=0.1, n=50.0):
+        
+    t = 0.0
+    while t < d:
+        p = Point()
+        p.x = t
+        c = ColorRGBA()
+        c.r, c.a = 1, 0.5
+        
+        marker.points.append(p)
+        marker.colors.append(c)
+        
+        t += d/n
+
+
+def makePointAxisMarker( msg ):
+    marker = Marker()
+
+    marker.type = Marker.POINTS
+    marker.scale.x = msg.scale * 0.05
+    marker.scale.y = msg.scale * 0.05
+    marker.scale.z = msg.scale * 0.05
+    marker.color.r = 0.5
+    marker.color.g = 0.5
+    marker.color.b = 0.5
+    marker.color.a = 1.0
+    createPointAxes (marker, msg.scale*0.45)
+
+    return marker
+
+def makePointLineMarker( msg ):
+    marker = Marker()
+
+    marker.type = Marker.POINTS
+    marker.scale.x = msg.scale * 0.05
+    marker.scale.y = msg.scale * 0.05
+    marker.scale.z = msg.scale * 0.05
+    marker.color.r = 0.5
+    marker.color.g = 0.5
+    marker.color.b = 0.5
+    marker.color.a = 1.0
+    createPointLine (marker, msg.scale*0.45)
+
+    return marker
+
+def makeBoxMarker( msg ):
     marker = Marker()
 
     marker.type = Marker.CUBE
-    marker.scale.x = msg.scale * 0.45
-    marker.scale.y = msg.scale * 0.45
-    marker.scale.z = msg.scale * 0.45
+    marker.scale.x = msg.scale * 0.25
+    marker.scale.y = msg.scale * 0.25
+    marker.scale.z = msg.scale * 0.25
     marker.color.r = 0.5
     marker.color.g = 0.5
     marker.color.b = 0.5
@@ -79,28 +148,36 @@ def makeBox( msg ):
 
     return marker
 
-def makeBoxControl( msg ):
+
+def makeMarkerControl( msg, mtype='axis' ):
     control =  InteractiveMarkerControl()
     control.always_visible = True
-    control.markers.append( makeBox(msg) )
+    if mtype == 'axis':
+        control.markers.append( makePointAxisMarker(msg) )
+    elif mtype == 'box':
+        control.markers.append( makeBoxMarker(msg) )
+    elif mtype == 'line':
+        control.markers.append( makePointLineMarker(msg) )
     msg.controls.append( control )
     return control
-
 
 #####################################################################
 # Marker Creation
 
-def make6DofMarker( fixed ):
+def make6DofMarker( fixed, single_axis=False):
     global server
     int_marker = InteractiveMarker()
     int_marker.header.frame_id = "/base_footprint"
     int_marker.scale = 0.05
 
-    int_marker.name = "tfm_marker"
+    int_marker.name = "pose_marker"
     int_marker.description = "Transform finder"
 
-    # insert a box
-    makeBoxControl(int_marker)
+    # insert a marker
+    if single_axis:
+        makeMarkerControl(int_marker, 'line')
+    else:
+        makeMarkerControl(int_marker)
 
     if fixed:
         int_marker.name += "_fixed"
@@ -191,8 +268,8 @@ def makeMoveMarker( ):
     int_marker.name = "pos_marker"
     int_marker.description = "Position finder"
 
-    # insert a box
-    makeBoxControl(int_marker)
+    # insert a marker
+    makeMarkerControl(int_marker, 'box')
 
 
     control = InteractiveMarkerControl()
@@ -232,8 +309,7 @@ def makeMoveMarker( ):
     server.insert(int_marker, nullCallback)
     menu_handler.apply( server, int_marker.name )
 
-
-def find_keypoint_transform_processing (kp, xyz, rgb):
+def find_keypoint_transform_processing (kp, xyz, rgb, normal=False):
     global server, app, done, found
     app = None
     found = False
@@ -243,14 +319,14 @@ def find_keypoint_transform_processing (kp, xyz, rgb):
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
         
     pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)
-    server = InteractiveMarkerServer("basic_controls")
+    server = InteractiveMarkerServer("find_keypoints")
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try with PC 1 second later?", callback=redoCallback)
 
     pcmsg = ru.xyzrgb2pc(xyz, rgb, 'base_footprint')
 
-    make6DofMarker( False )
+    make6DofMarker( False, normal )
     #make6DofMarker( True )
 
     server.applyChanges()
@@ -275,16 +351,17 @@ def find_keypoint_transform_processing (kp, xyz, rgb):
     if not found:
         return None
     
-    marker = server.get("tfm_marker")
-    
+    marker = server.get("pose_marker")
+    pose = marker.pose
     print "Pose of the marker for %s"%kp
-    print marker.pose
+    print pose
     
-    rospy.signal_shutdown('Finished finding transform')
+    #rospy.signal_shutdown('Finished finding transform')
+    server.erase("pose_marker")
     
-    return conversions.pose_to_hmat(marker.pose).tolist()
+    return conversions.pose_to_hmat(pose)
 
-def find_keypoint_transform_execution (kp, cloud_topic):
+def find_keypoint_transform_execution (kp, grabber, tfm, normal=False):
     global server, app, found, done
     found = False
     done = False
@@ -293,12 +370,13 @@ def find_keypoint_transform_execution (kp, cloud_topic):
     if rospy.get_name() == '/unnamed':
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
         
-    server = InteractiveMarkerServer("basic_controls")
+    pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)
+    server = InteractiveMarkerServer("find_keypoints")
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try?", callback=redoCallback)
 
-    make6DofMarker( False )
+    make6DofMarker( False, normal )
     #make6DofMarker( True )
 
     server.applyChanges()
@@ -312,10 +390,14 @@ def find_keypoint_transform_execution (kp, cloud_topic):
         viz.resize( 1000, 1000 )
         viz.show()
 
-    print "Listen to the point_cloud data on: %s"%cloud_topic
-    
     p = rospy.Rate(10)
     while not rospy.is_shutdown() and not done:
+        rgb, dep = grabber.getRGBD()
+        xyz = clouds.depth_to_xyz(dep, berkeley_pr2.f)
+        xyz = xyz.dot(tfm[:3,:3].T) + tfm[:3,3][None,None,:]
+        pcmsg = ru.xyzrgb2pc(xyz, rgb, 'base_footprint')
+        pcpub.publish(pcmsg)
+        
         if not outer_RVIZ:
             app.processEvents()
         p.sleep()
@@ -324,14 +406,16 @@ def find_keypoint_transform_execution (kp, cloud_topic):
     if not found:
         return None
     
-    marker = server.get("tfm_marker")
+    marker = server.get("pose_marker")
+    pose = marker.pose
     
     print "Pose of the marker for %s"%kp
-    print marker.pose
+    print pose
     
-    rospy.signal_shutdown('Finished finding transform')
+    server.erase("pose_marker")
+    #rospy.signal_shutdown('Finished finding transform')
     
-    return conversions.pose_to_hmat(marker.pose).tolist()
+    return conversions.pose_to_hmat(pose)
 
 
 def find_keypoint_position_processing (kp, xyz, rgb):
@@ -344,7 +428,7 @@ def find_keypoint_position_processing (kp, xyz, rgb):
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
         
     pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)
-    server = InteractiveMarkerServer("basic_controls")
+    server = InteractiveMarkerServer("find_keypoints")
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try with PC 1 second later?", callback=redoCallback)
@@ -381,11 +465,11 @@ def find_keypoint_position_processing (kp, xyz, rgb):
     print "Position of the marker for %s"%kp
     print pos
     
-    rospy.signal_shutdown('Finished finding transform')
-    
+    #rospy.signal_shutdown('Finished finding transform')
+    server.erase("pos_marker")    
     return [pos.x, pos.y, pos.z]
 
-def find_keypoint_position_execution (kp, cloud_topic):
+def find_keypoint_position_execution (kp, grabber, tfm):
     global server, app, found, done
     found = False
     done = False
@@ -393,8 +477,9 @@ def find_keypoint_position_execution (kp, cloud_topic):
     
     if rospy.get_name() == '/unnamed':
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
-        
-    server = InteractiveMarkerServer("basic_controls")
+    
+    pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)    
+    server = InteractiveMarkerServer("find_keypoints")
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try?", callback=redoCallback)
@@ -412,10 +497,15 @@ def find_keypoint_position_execution (kp, cloud_topic):
         viz.resize( 1000, 1000 )
         viz.show()
 
-    print "Listen to the point_cloud data on: %s"%cloud_topic
     
     p = rospy.Rate(10)
     while not rospy.is_shutdown() and not done:
+        rgb, dep = grabber.getRGBD()
+        xyz = clouds.depth_to_xyz(dep, berkeley_pr2.f)
+        xyz = xyz.dot(tfm[:3,:3].T) + tfm[:3,3][None,None,:]
+        pcmsg = ru.xyzrgb2pc(xyz, rgb, 'base_footprint')
+        pcpub.publish(pcmsg)
+        
         if not outer_RVIZ:
             app.processEvents()
         p.sleep()
@@ -430,7 +520,7 @@ def find_keypoint_position_execution (kp, cloud_topic):
     print "Position of the marker for %s"%kp
     print pos
     
-    rospy.signal_shutdown('Finished finding transform')
-    
+    #rospy.signal_shutdown('Finished finding transform')
+    server.erase("pos_marker")    
     return [pos.x, pos.y, pos.z]
 

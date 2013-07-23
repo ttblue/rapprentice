@@ -52,7 +52,7 @@ import cloudprocpy, trajoptpy, json, openravepy
 import numpy as np, h5py
 from numpy import asarray
 
-import find_keypoints as fk
+import find_keypoints as fk, suturing_visualization_interface as svi
 
 subprocess.call("killall XnSensorServer", shell=True)
     
@@ -173,7 +173,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     
     
 def set_gripper_maybesim(lr, value):
-    if args.execution:
+    if args.execution and not args.animation:
         gripper = {"l":Globals.pr2.lgrip, "r":Globals.pr2.rgrip}[lr]
         gripper.set_angle(value)
         Globals.pr2.join_all()
@@ -193,9 +193,9 @@ def exec_traj_maybesim(bodypart2traj, speed_factor=0.5):
         Globals.robot.SetActiveDOFs(dof_inds)
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
         """
-        name2part = {"lgrip":Globals.pr2.lgrip, 
-                     "rgrip":Globals.pr2.rgrip, 
-                     "larm":Globals.pr2.larm, 
+        name2part = {"lgrip":Globals.pr2.lgrip,
+                     "rgrip":Globals.pr2.rgrip,
+                     "larm":Globals.pr2.larm,
                      "rarm":Globals.pr2.rarm,
                      "base":Globals.pr2.base}
         dof_inds = []
@@ -248,14 +248,17 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     Globals.viewer.Step()
 ###################
 
-
-def find_common_marker_poses (poses1, poses2):
+# Use only the relevant AR markers
+def find_common_marker_poses (poses1, poses2, keys):
     kp1, kp2 = {}, {}
     common_id = np.intersect1d(poses1.keys(), poses2.keys())
+    marker_keys = [key for key in keys if key in svi.MARKER_KEYPOINTS]
     
-    for id in common_id:
-        kp1[id] = poses1[id]
-        kp2[id] = poses2[id]
+    for key in marker_keys:
+        for i in svi.MARKER_KEYPOINTS[key]:
+            if i in common_id:
+                kp1[i] = poses1[i]
+                kp2[i] = poses2[i]
         
     return kp1, kp2
 
@@ -353,49 +356,62 @@ def main():
 
         handles = []
         
+        use_markers = seg_info.get('ar_marker_poses')
+        if use_markers is None:
+            use_markers = False
+        else:
+            if seg_info.get('extra_information') and "ignore_markers" in seg_info['extra_information']:
+                use_markers = False
+            else:
+                use_markers = True
+            
+        if use_markers:
+            old_marker_poses_str = seg_info['ar_marker_poses']
+            old_marker_poses = {}
+            for i in old_marker_poses_str:
+                old_marker_poses[int(i)] = old_marker_poses_str[i]
+        
+        
         # TODO: Have a check for only transformations -> rigid transformations
         if args.fake_data_segment:
             new_keypoints = demofile[args.fake_data_segment]["key_points"]
-            new_marker_poses_str = demofile[args.fake_data_segment]["ar_marker_poses"]
-            new_marker_poses = {}
-            for id in new_marker_poses_str:
-                new_marker_poses[int(id)] = new_marker_poses_str[id]
+            if use_markers:
+                new_marker_poses_str = demofile[args.fake_data_segment]["ar_marker_poses"]
+                new_marker_poses = {}
+                for i in new_marker_poses_str:
+                    new_marker_poses[int(i)] = new_marker_poses_str[i]
             if seg_info['key_points'].keys().sort() != new_keypoints.keys().sort():
                 print "Keypoints don't match."
                 exit(1)
         else:
-            new_keypoints, new_marker_poses = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k)
+            new_keypoints, new_marker_poses = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k, use_markers)
 
 
 
-        # Finding all the points
-        old_marker_poses_str = seg_info['ar_marker_poses']
-        old_marker_poses = {}
-        for id in old_marker_poses_str:
-            old_marker_poses[int(id)] = old_marker_poses_str[id]
         # Points from keypoints
         old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
         new_xyz, _ = fk.key_points_to_points(new_keypoints)
 
         # Points from markers
-        old_common_poses, new_common_poses = find_common_marker_poses(old_marker_poses, new_marker_poses)
-        old_m_xyz, rigid_m = fk.key_points_to_points(old_common_poses)
-        new_m_xyz, _ = fk.key_points_to_points(new_common_poses)
+        if use_markers:
+            old_common_poses, new_common_poses = find_common_marker_poses(old_marker_poses, new_marker_poses, new_keypoints.keys())
+            old_m_xyz, rigid_m = fk.key_points_to_points(old_common_poses)
+            new_m_xyz, _ = fk.key_points_to_points(new_common_poses)
 
-        if len(old_m_xyz) > 0 and rigid: rigid = False
-        elif rigid_m and not old_xyz.any(): rigid = True
+            if len(old_m_xyz) > 0 and rigid: rigid = False
+            elif rigid_m and not old_xyz.any(): rigid = True
 
-        # concatenate points
-        if old_xyz.any() and old_m_xyz.any():
-            old_xyz = np.r_[old_xyz, old_m_xyz]
-        elif old_m_xyz.any():
-            old_xyz = old_m_xyz
+            # concatenate points
+            if old_xyz.any() and old_m_xyz.any():
+                old_xyz = np.r_[old_xyz, old_m_xyz]
+            elif old_m_xyz.any():
+                old_xyz = old_m_xyz
         
-        if new_xyz.any() and new_m_xyz.any():
-            new_xyz = np.r_[new_xyz, new_m_xyz]
-        elif new_m_xyz.any():
-            new_xyz = new_m_xyz
-            
+            if new_xyz.any() and new_m_xyz.any():
+                new_xyz = np.r_[new_xyz, new_m_xyz]
+            elif new_m_xyz.any():
+                new_xyz = new_m_xyz
+                
         if new_xyz.any() and new_xyz.shape != (4,4):
             handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
             handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
@@ -485,8 +501,6 @@ def main():
                     bodypart2traj[part_name] = new_joint_traj
                     arms_used += lr
 
-        
-
             ################################    
             redprint("Executing joint trajectory for segment %s, part %i using arms '%s'"%(seg_name, i_miniseg, arms_used))
 
@@ -537,14 +551,11 @@ def openloop():
             bodypart2traj = {}
             arms_used = ""
             
-            freq = 5
             # Not sure about frequency - look into this
             for lr in 'lr':
                 manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
-                time_length = np.ptp(seg_info["stamps"])
-                num = np.round(time_length*freq)
-                print "Number of steps: ", num
-                _, joint_traj = resampling.adaptive_resample(asarray(seg_info[manip_name][i_start:i_end+1]), tol=0.01, max_change=.1, min_steps=num)
+                _, joint_traj = resampling.adaptive_resample(asarray(seg_info[manip_name][i_start:i_end+1]), tol=0.01, max_change=.1)
+                print "Shape of %s traj: "%lr, joint_traj.shape
                 if arm_moved(joint_traj):
                     part_name = {"l":"larm", "r":"rarm"}[lr]
                     bodypart2traj[part_name] = joint_traj
@@ -554,7 +565,8 @@ def openloop():
             
             for lr in 'lr':
                 set_gripper_maybesim(lr, binarize_gripper(seg_info["%s_gripper_joint"%lr][i_start]))
-                
+               
+            print len(bodypart2traj) 
             if len(bodypart2traj) > 0:
                 exec_traj_maybesim(bodypart2traj, speed_factor=0.1)
 

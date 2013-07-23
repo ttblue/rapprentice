@@ -4,23 +4,30 @@ import sys
 import rospy
 
 from rapprentice.colorize import colorize
-from rapprentice import bag_proc as bp, ros2rave, berkeley_pr2,\
-         yes_or_no, clouds, ros_utils as ru
+from rapprentice import bag_proc as bp, ros2rave, berkeley_pr2, clouds
 import transform_finder as tff
 
-KEYPOINTS = ['lh', 'rh', 'tc', 'mc', 'bc', 'ne', 'nt', 'ntt', 'stand', 'rzr', 'none']
+KEYPOINTS = ['lh', 'rh', 'tc', 'mc', 'bc', 'ne', 'hn', 'nt', 'ntt', 'stand', 'rzr', 'none']
 KEYPOINTS_FULL = {  'lh':'left_hole',
                     'rh': 'right_hole',
                     'tc': 'top_cut',
                     'mc': 'middle_cut',
                     'bc': 'bottom-cut',
                     'ne': 'needle_end',
+                    'hn': 'hole_normal',
                     'nt': 'needle_tip',
                     'ntt': 'needle_tip_transform',
                     'rzr': 'razor',
                     'stand': 'stand',
                     'none': 'none' }
 KEYPOINTS_SHORT = {KEYPOINTS_FULL[k]:k for k in KEYPOINTS_FULL}
+
+MARKER_KEYPOINTS = {'stand':[1,2,3]}
+SINGLE_POINT_KEYPOINTS = ['lh','rh','tc','mc','bc']
+INTERACTIVE_POSITION_KEYPOINTS = ['ne', 'rzr', 'nt']
+INTERACTIVE_DIRECTION_KEYPOINTS = ['hn']
+INTERACTIVE_TRANSFORM_KEYPOINTS = ['ntt']
+
 WIN_NAME = 'Find Keypoints'
 
 def find_Twk (joints, names):
@@ -123,7 +130,163 @@ def find_kp_single_cloud (kp, xyz_tf, rgb_img):
     #return (x, y, z), (col_kp, row_kp)
     return (x, y, z)
 
+def find_kp_processing (kp, frame_stamp, tfm, video_dir):
+    """
+    Process the video to find the kp.
+    """
+    if kp in MARKER_KEYPOINTS:
+        print "Will store all the visible AR markers for %s."%kp
+        return None
+        
+    elif kp in SINGLE_POINT_KEYPOINTS:
+        key_rgb, key_depth_img = bp.get_video_frames(video_dir, [frame_stamp])
+        xyz_tf = transform_pointclouds(key_depth_img[0], tfm)
+        return find_kp_single_cloud(kp, xyz_tf, key_rgb[0])
 
+    elif kp in INTERACTIVE_POSITION_KEYPOINTS:
+        time_added = 0
+        while True:
+            key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
+            xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
+            kp_loc = tff.find_keypoint_position_processing(kp, xyz_tf, key_rgb_imgs[0])
+
+            if kp_loc is not None:
+                # Special case for nt
+                if kp=='nt' and kp_loc[2] > 0.8:
+                    print '%s too low. Try again.'%kp
+                else:
+                    return kp_loc.tolist()
+            else:
+                time_added += 1
+                if time_added > 15:
+                    print 'Could not find valid %s over 15 seconds. Something seems to be wrong.'%kp
+                    return None
+                    
+    elif kp in INTERACTIVE_DIRECTION_KEYPOINTS:
+        time_added = 0
+        while True:
+            key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
+            xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
+            kp_loc = tff.find_keypoint_transform_processing(kp, xyz_tf, key_rgb_imgs[0], True)
+
+            if kp_loc is None:
+                time_added += 1
+                if time_added > 15:
+                    print 'Could not find valid %s over 15 seconds. Something seems to be wrong.'
+                    return None
+            else:
+                p = kp_loc[0:3,3]
+                n = kp_loc[0:3,0]
+                return [p.tolist(), n.tolist()]
+                
+    elif kp in INTERACTIVE_TRANSFORM_KEYPOINTS:
+        time_added = 0
+        while True:
+            key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
+            xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
+            kp_loc = tff.find_keypoint_transform_processing(kp, xyz_tf, key_rgb_imgs[0])
+            
+            if kp_loc is None:
+                time_added += 1
+                if time_added > 15:
+                    print 'Could not find valid %s over 15 seconds. Something seems to be wrong.'%kp
+                    return None
+                else:
+                    print 'Try to find the %s again.'%KEYPOINTS_FULL[kp]
+            else:
+                return kp_loc.tolist()
+    
+    elif kp == 'none':
+        return [0,0,0]
+    
+
+def find_kp_execution (kp, grabber, tfm):
+    """
+    Find keypoint location during execution time.
+    """
+    if kp in MARKER_KEYPOINTS:
+        print "Will store all the visible AR markers for %s."%kp
+        return [0,0,0]
+
+    elif kp in SINGLE_POINT_KEYPOINTS:
+        xyz_tf, rgb = get_kp_clouds(grabber, 1, tfm)
+        return find_kp_single_cloud(kp, xyz_tf, rgb)
+    
+    elif kp in INTERACTIVE_POSITION_KEYPOINTS:
+        attempts = 0
+        while True:
+            kp_loc = tff.find_keypoint_position_execution(kp, grabber, tfm)
+            
+            if kp_loc is not None:
+                if kp=='nt' and kp_loc[2] > 0.8:
+                    print 'Needle tip too low. Try again.'
+                else:
+                    return kp_loc.tolist()
+            else:
+                attempts += 1
+                if attempts > 15:
+                    print 'Could not find valid %s in 15 attempts. Something seems to be wrong.'%kp
+                    return None
+
+    elif kp in INTERACTIVE_DIRECTION_KEYPOINTS:
+        attempts = 0
+        while True:
+            kp_loc = tff.find_keypoint_transform_execution(kp, grabber, tfm, True)
+
+            if kp_loc is None:
+                attempts += 1
+                if attempts > 15:
+                    print 'Could not find valid %s in 15 attempts. Something seems to be wrong.'%kp
+                    return None
+            else:
+                p = kp_loc[0:3,3]
+                n = kp_loc[0:3,0]
+                return [p.tolist(), n.tolist()]
+
+    elif kp in INTERACTIVE_TRANSFORM_KEYPOINTS:
+        attempts = 0
+        while True:
+            # TODO: Check cloud topic
+            kp_loc = tff.find_keypoint_transform_execution(kp, grabber, tfm)
+            
+            if kp_loc is None:
+                attempts += 1
+                if attempts > 15:
+                    print 'Could not find valid %s in 15 attempts. Something seems to be wrong.'%kp
+                    return None
+                else:
+                    print 'Try to find the %s again.'%KEYPOINTS_FULL[kp]
+            else:
+                return kp_loc.tolist()
+ 
+    elif kp == 'none':
+        return [0,0,0]
+
+############################################################################# OLD CODE
+
+def get_last_kp_loc(exec_keypts, desired_keypt, current_seg):        
+    
+    search_seg = current_seg - 1
+       
+    while(True):
+        if search_seg < 0:
+            print "Reached beginning of execution and couldn't find desired keypoint! Aborting..."
+            sys.exit(1)            
+        else:
+            search_seg_names = exec_keypts[search_seg]["names"]
+            search_seg_locs = exec_keypts[search_seg]["locations"]
+        
+            for k in range(len(search_seg_names)):
+                if search_seg_names[k] == desired_keypt:
+                    kp_loc = search_seg_locs[k]
+                    kp_found = True
+            
+        if kp_found:        
+            return kp_loc, search_seg
+        else:
+            search_seg -= 1
+
+# No longer needed - using interactive markers.
 def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
     """
     Find the key-point from clicking red block.
@@ -205,6 +368,8 @@ def find_kp_red_block (kp, xyz_tfs, rgb_imgs):
  
     return xyz_avg, valid_pts
 
+
+# No longer needed - using interactive markers.
 def find_needle_tip (kp, xyz_tfs, rgb_imgs):
     """
     Find the key-point from multiple point clouds, but with a minimum distance threshold.
@@ -297,151 +462,3 @@ def find_needle_tip (kp, xyz_tfs, rgb_imgs):
     #print "at end of needle tip func"
 
     return max_needle
-
-
-def find_kp_processing (kp, frame_stamp, tfm, video_dir):
-    """
-    Process the video to find the kp.
-    """
-    if kp in ['lh','rh','tc','mc','bc']:
-        key_rgb, key_depth_img = bp.get_video_frames(video_dir, [frame_stamp])
-        xyz_tf = transform_pointclouds(key_depth_img[0], tfm)
-        return find_kp_single_cloud(kp, xyz_tf, key_rgb[0])
-    
-    elif kp in ['stand', 'ne', 'rzr']:
-        num_clouds = 30
-        while True:
-            key_rgb_imgs, key_depth_imgs = bp.get_num_frames(video_dir, frame_stamp, num_clouds)
-            xyz_tfs = [transform_pointclouds(img, tfm) for img in key_depth_imgs]
-            kp_loc, valid_pts = find_kp_red_block(kp, xyz_tfs, key_rgb_imgs)
-        
-            if valid_pts > 0:
-                return kp_loc
-            else:
-                num_clouds += 5
-                if num_clouds > 50:
-                    print 'Could not find enough points with even 50 clouds. Something seems to be wrong.'
-                    return None
-                print 'Could not find enough points. Trying again with more images.'
-
-    elif kp == 'nt':
-        time_added = 0
-        while True:
-            key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
-            xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
-            kp_loc = tff.find_keypoint_position_processing(kp, xyz_tf, key_rgb_imgs[0])
-
-            if kp_loc is not None and kp_loc[2] > 0.8:
-                return kp_loc
-            else:
-                time_added += 1
-                if time_added > 15:
-                    print 'Could not find valid needle tip in 15 attempts. Something seems to be wrong.'
-                    return None
-                if kp_loc:
-                    print 'Needle tip too low. Try again.'
-                
-    elif kp == 'ntt':
-        time_added = 0
-        while True:
-            key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
-            xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
-            kp_loc = tff.find_keypoint_transform_processing(kp, xyz_tf, key_rgb_imgs[0])
-
-            
-            if kp_loc is None:
-                time_added += 1
-                if time_added > 15:
-                    print 'Could not find valid tip transform over 15 seconds. Something seems to be wrong.'
-                    return None
-                else:
-                    print 'Try to find the %s again.'%KEYPOINTS_FULL[kp]
-            else:
-                return
-            kp_loc.tolist()
-    
-    elif kp == 'none':
-        return [0,0,0]
-    
-
-def find_kp_execution (kp, grabber, tfm):
-    """
-    Find keypoint location during execution time.
-    """
-    if kp in ['lh','rh','tc','mc','bc']:
-        xyz_tf, rgb = get_kp_clouds(grabber, 1, tfm)
-        return find_kp_single_cloud(kp, xyz_tf, rgb)
-    
-    elif kp in ['stand', 'ne', 'rzr']:
-        num_clouds = 30
-        while True:
-            xyz_tfs, key_rgb_imgs = get_kp_clouds(grabber, num_clouds, tfm)
-            kp_loc, valid_pts = find_kp_red_block(kp, xyz_tfs, key_rgb_imgs)
-            print 1
-            if valid_pts > 0:
-                return kp_loc
-            else:
-                num_clouds += 5
-                if num_clouds > 50:
-                    print 'Could not find enough points with even 50 clouds. Something seems to be wrong.'
-                    return None
-                print 'Could not find enough points. Trying again with more images.'
-
-    elif kp == 'nt':
-        attempts = 0
-        while True:
-            #xyz_tfs, key_rgb_imgs = get_kp_clouds(grabber, num_clouds, tfm)
-            #kp_loc = find_needle_tip(kp, xyz_tfs, key_rgb_imgs)
-            kp_loc = tff.find_keypoint_position_execution(kp, "not_sure")
-            
-            if kp_loc is not None and kp_loc[2] > 0.8:
-                return kp_loc
-            else:
-                attempts += 1
-                if attempts > 15:
-                    print 'Could not find valid needle tip in 15 attempts. Something seems to be wrong.'
-                    return None
-                if kp_loc:
-                    print 'Needle tip too low. Try again.'
-
-    elif kp == 'ntt':
-        attempts = 0
-        while True:
-            # TODO: Check cloud topic
-            kp_loc = tff.find_keypoint_transform_execution(kp, "not_sure")
-            
-            if kp_loc is None:
-                attempts += 1
-                if attempts > 15:
-                    print 'Could not find valid tip transform in 15 attempts. Something seems to be wrong.'
-                    return None
-                else:
-                    print 'Try to find the %s again.'%KEYPOINTS_FULL[kp]
-            else:
-                return kp_loc.to_list()
- 
-    elif kp == 'none':
-        return [0,0,0]
-############################################################################# OLD CODE
-
-def get_last_kp_loc(exec_keypts, desired_keypt, current_seg):        
-    
-    search_seg = current_seg - 1
-       
-    while(True):
-        if search_seg < 0:
-            print "Reached beginning of execution and couldn't find desired keypoint! Aborting..."
-            sys.exit(1)            
-        else:
-            search_seg_names = exec_keypts[search_seg]["names"]
-            search_seg_locs = exec_keypts[search_seg]["locations"]
-        
-            for k in range(len(search_seg_names)):
-                if search_seg_names[k] == desired_keypt:
-                    kp_loc = search_seg_locs[k]
-                    kp_found = True
-            
-        if kp_found:        
-            return kp_loc, search_seg
-        else:
-            search_seg -= 1

@@ -87,12 +87,13 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
                 seg_infos[i]['extra_information'].append("l_grab")
             else:
                 seg_infos[i]['extra_information'].append("r_grab")
+        if yes_or_no('Would you like to ignore the markers for this segment'):
+            seg_infos[i]['extra_information'].append("ignore_markers")
 
-        
     return seg_infos
 
 
-def get_keypoints_execution (grabber, keys, tfm):
+def get_keypoints_execution (grabber, keys, tfm, use_markers):
     """
     Find keypoints during execution phase.
     If fake cloud, cloud would not be none.
@@ -112,9 +113,11 @@ def get_keypoints_execution (grabber, keys, tfm):
 
     # Potentially make this more robust
     rgb, depth = grabber.getRGBD()
-    marker_poses = get_ar_marker_poses (rgb, depth, tfm)
-    
-    return keypoints, marker_poses
+    if use_markers:
+        marker_poses = get_ar_marker_poses (rgb, depth, tfm)
+        return keypoints, marker_poses
+    else:
+        return keypoints, None
 
 
 def key_points_to_points (keypoints):
@@ -125,7 +128,13 @@ def key_points_to_points (keypoints):
     dist = 0.1
     for key in keypoints:
         loc = np.array(keypoints[key])
-        if loc.shape == (4,4):
+        # Not warping based on this
+        if key == 'needle_tip_transform':
+            continue
+        # Will pull it out of marker poses based on common visible ones.
+        if key in svi.MARKER_KEYPOINTS:
+            continue
+        elif loc.shape == (4,4):
             if len(keypoints) == 1:
                 return loc, True
             # Unpack all the axes and the origin of the transform
@@ -138,8 +147,8 @@ def key_points_to_points (keypoints):
             # Unpack the point and its normal
             p,n = loc
             points.append(p)
+            points.append(p+dist*n/2)
             points.append(p+dist*n)
         elif key != "none":
             points.append(loc)
     return np.array(points), False
-
