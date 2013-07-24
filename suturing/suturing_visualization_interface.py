@@ -7,14 +7,15 @@ from rapprentice.colorize import colorize
 from rapprentice import bag_proc as bp, ros2rave, berkeley_pr2, clouds
 import transform_finder as tff
 
-KEYPOINTS = ['lh', 'rh', 'tc', 'mc', 'bc', 'ne', 'hn', 'nt', 'ntt', 'stand', 'rzr', 'none']
+KEYPOINTS = ['lh', 'rh', 'tc', 'mc', 'bc', 'ne', 'hn1', 'hn2', 'nt', 'ntt', 'stand', 'rzr', 'none']
 KEYPOINTS_FULL = {  'lh':'left_hole',
                     'rh': 'right_hole',
                     'tc': 'top_cut',
                     'mc': 'middle_cut',
-                    'bc': 'bottom-cut',
+                    'bc': 'bottom_cut',
                     'ne': 'needle_end',
-                    'hn': 'hole_normal',
+                    'hn1': 'hole1_normal',
+                    'hn2': 'hole2_normal',
                     'nt': 'needle_tip',
                     'ntt': 'needle_tip_transform',
                     'rzr': 'razor',
@@ -22,10 +23,10 @@ KEYPOINTS_FULL = {  'lh':'left_hole',
                     'none': 'none' }
 KEYPOINTS_SHORT = {KEYPOINTS_FULL[k]:k for k in KEYPOINTS_FULL}
 
-MARKER_KEYPOINTS = {'stand':[1,2,3]}
+MARKER_KEYPOINTS = {'stand':[0,1,3]}
 SINGLE_POINT_KEYPOINTS = ['lh','rh','tc','mc','bc']
 INTERACTIVE_POSITION_KEYPOINTS = ['ne', 'rzr', 'nt']
-INTERACTIVE_DIRECTION_KEYPOINTS = ['hn']
+INTERACTIVE_DIRECTION_KEYPOINTS = ['hn1','hn2']
 INTERACTIVE_TRANSFORM_KEYPOINTS = ['ntt']
 
 WIN_NAME = 'Find Keypoints'
@@ -128,7 +129,7 @@ def find_kp_single_cloud (kp, xyz_tf, rgb_img):
     print kp, '3d location', x, y, z
 
     #return (x, y, z), (col_kp, row_kp)
-    return (x, y, z)
+    return [x, y, z]
 
 def find_kp_processing (kp, frame_stamp, tfm, video_dir):
     """
@@ -136,7 +137,7 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
     """
     if kp in MARKER_KEYPOINTS:
         print "Will store all the visible AR markers for %s."%kp
-        return None
+        return [0,0,0]
         
     elif kp in SINGLE_POINT_KEYPOINTS:
         key_rgb, key_depth_img = bp.get_video_frames(video_dir, [frame_stamp])
@@ -152,10 +153,14 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
 
             if kp_loc is not None:
                 # Special case for nt
-                if kp=='nt' and kp_loc[2] > 0.8:
+                if kp=='nt' and kp_loc[2] < 0.8:
+#                     x: 0.51092261076
+#                     y: 0.0939055234194
+#                     z: 0.933865368366
+
                     print '%s too low. Try again.'%kp
                 else:
-                    return kp_loc.tolist()
+                    return kp_loc
             else:
                 time_added += 1
                 if time_added > 15:
@@ -205,7 +210,7 @@ def find_kp_execution (kp, grabber, tfm):
     Find keypoint location during execution time.
     """
     if kp in MARKER_KEYPOINTS:
-        print "Will store all the visible AR markers for %s."%kp
+        print "Will find all the visible AR markers for %s."%kp
         return [0,0,0]
 
     elif kp in SINGLE_POINT_KEYPOINTS:
@@ -218,10 +223,10 @@ def find_kp_execution (kp, grabber, tfm):
             kp_loc = tff.find_keypoint_position_execution(kp, grabber, tfm)
             
             if kp_loc is not None:
-                if kp=='nt' and kp_loc[2] > 0.8:
+                if kp=='nt' and kp_loc[2] < 0.8:
                     print 'Needle tip too low. Try again.'
                 else:
-                    return kp_loc.tolist()
+                    return kp_loc
             else:
                 attempts += 1
                 if attempts > 15:

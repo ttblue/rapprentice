@@ -152,8 +152,8 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
                 group["key_points"][key] = seg_info["key_points"][key]
         if seg_info.get("ar_marker_poses"):
             group.create_group("ar_marker_poses")
-            for id in seg_info["ar_marker_poses"]:
-                group["ar_marker_poses"][str(id)] = seg_info["ar_marker_poses"][id]
+            for i in seg_info["ar_marker_poses"]:
+                group["ar_marker_poses"][str(i)] = seg_info["ar_marker_poses"][i]
         if seg_info.get('ree'):
             group["ree"] = seg_info["ree"]
         if seg_info.get('lee'):

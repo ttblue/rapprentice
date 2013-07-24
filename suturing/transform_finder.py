@@ -319,7 +319,7 @@ def find_keypoint_transform_processing (kp, xyz, rgb, normal=False):
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
         
     pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)
-    server = InteractiveMarkerServer("find_keypoints")
+    server = InteractiveMarkerServer("find_keypoint_%s"%kp)
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try with PC 1 second later?", callback=redoCallback)
@@ -331,14 +331,15 @@ def find_keypoint_transform_processing (kp, xyz, rgb, normal=False):
 
     server.applyChanges()
     
-    if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
-        outer_RVIZ = True
-    else:
-        outer_RVIZ = False
-        app = myviz.QApplication( [""] )
-        viz = myviz.MyViz()
-        viz.resize( 1000, 1000 )
-        viz.show()
+    print "Open an RViz Window!"
+    #if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
+    outer_RVIZ = True
+#     else:
+#         outer_RVIZ = False
+#         app = myviz.QApplication( [""] )
+#         viz = myviz.MyViz()
+#         viz.resize( 1000, 1000 )
+#         viz.show()
 
     p = rospy.Rate(10)
     while not rospy.is_shutdown() and not done:
@@ -371,7 +372,7 @@ def find_keypoint_transform_execution (kp, grabber, tfm, normal=False):
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
         
     pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)
-    server = InteractiveMarkerServer("find_keypoints")
+    server = InteractiveMarkerServer("find_keypoint_%s"%kp)
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try?", callback=redoCallback)
@@ -381,14 +382,15 @@ def find_keypoint_transform_execution (kp, grabber, tfm, normal=False):
 
     server.applyChanges()
     
-    if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
-        outer_RVIZ = True
-    else:
-        outer_RVIZ = False
-        app = myviz.QApplication( [""] )
-        viz = myviz.MyViz()
-        viz.resize( 1000, 1000 )
-        viz.show()
+    print "Open an RViz Window!"
+    #if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
+    outer_RVIZ = True
+#     else:
+#         outer_RVIZ = False
+#         app = myviz.QApplication( [""] )
+#         viz = myviz.MyViz()
+#         viz.resize( 1000, 1000 )
+#         viz.show()
 
     p = rospy.Rate(10)
     while not rospy.is_shutdown() and not done:
@@ -428,7 +430,7 @@ def find_keypoint_position_processing (kp, xyz, rgb):
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
         
     pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)
-    server = InteractiveMarkerServer("find_keypoints")
+    server = InteractiveMarkerServer("find_keypoint_%s"%kp)
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try with PC 1 second later?", callback=redoCallback)
@@ -439,14 +441,15 @@ def find_keypoint_position_processing (kp, xyz, rgb):
 
     server.applyChanges()
     
-    if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
-        outer_RVIZ = True
-    else:
-        outer_RVIZ = False
-        app = myviz.QApplication( [""] )
-        viz = myviz.MyViz()
-        viz.resize( 1000, 1000 )
-        viz.show()
+    print "Open an RViz Window!"
+    #if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
+    outer_RVIZ = True
+#     else:
+#         outer_RVIZ = False
+#         app = myviz.QApplication( [""] )
+#         viz = myviz.MyViz()
+#         viz.resize( 1000, 1000 )
+#         viz.show()
 
     p = rospy.Rate(10)
     while not rospy.is_shutdown() and not done:
@@ -479,7 +482,7 @@ def find_keypoint_position_execution (kp, grabber, tfm):
         rospy.init_node("find_keypoint_%s"%kp, anonymous=True, disable_signals=True)
     
     pcpub = rospy.Publisher('keypoint_pcd', PointCloud2)    
-    server = InteractiveMarkerServer("find_keypoints")
+    server = InteractiveMarkerServer("find_keypoint_%s"%kp)
 
     menu_handler.insert("Done?", callback=doneCallback)
     menu_handler.insert("Re-try?", callback=redoCallback)
@@ -488,14 +491,15 @@ def find_keypoint_position_execution (kp, grabber, tfm):
 
     server.applyChanges()
     
-    if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
-        outer_RVIZ = True
-    else:
-        outer_RVIZ = False
-        app = myviz.QApplication( [""] )
-        viz = myviz.MyViz()
-        viz.resize( 1000, 1000 )
-        viz.show()
+    print "Open an RViz Window!"
+    #if yes_or_no("Do you want to open your own rviz window? Might be a better idea."):
+    outer_RVIZ = True
+#     else:
+#         outer_RVIZ = False
+#         app = myviz.QApplication( [""] )
+#         viz = myviz.MyViz()
+#         viz.resize( 1000, 1000 )
+#         viz.show()
 
     
     p = rospy.Rate(10)

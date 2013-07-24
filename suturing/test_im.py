@@ -56,9 +56,6 @@ def nullCallback (feedback):
 
 def createPointAxes (marker, d=0.1, n=50.0):
         
-    marker.points.append(Point())
-    marker.colors.append(ColorRGBA())
-    
     t = 0.0
     while t < d:
         p1, p2, p3 = Point(), Point(), Point()
@@ -77,15 +74,25 @@ def createPointAxes (marker, d=0.1, n=50.0):
         
         t += d/n
 
+def createPointLine (marker, d=0.1, n=50.0):
+        
+    t = 0.0
+    while t < d:
+        p = Point()
+        p.x = t
+        c = ColorRGBA()
+        c.r, c.a = 1, 0.5
+        
+        marker.points.append(p)
+        marker.colors.append(c)
+        
+        t += d/n
 
-def makeBox( msg ):
+
+def makePointAxisMarker( msg ):
     marker = Marker()
 
     marker.type = Marker.POINTS
-    
-    import IPython
-    IPython.embed()
-      
     marker.scale.x = msg.scale * 0.05
     marker.scale.y = msg.scale * 0.05
     marker.scale.z = msg.scale * 0.05
@@ -97,38 +104,72 @@ def makeBox( msg ):
 
     return marker
 
-def makeBoxControl( msg ):
+def makePointLineMarker( msg ):
+    marker = Marker()
+
+    marker.type = Marker.POINTS
+    marker.scale.x = msg.scale * 0.05
+    marker.scale.y = msg.scale * 0.05
+    marker.scale.z = msg.scale * 0.05
+    marker.color.r = 0.5
+    marker.color.g = 0.5
+    marker.color.b = 0.5
+    marker.color.a = 1.0
+    createPointLine (marker, msg.scale*0.45)
+
+    return marker
+
+def makeBoxMarker( msg ):
+    marker = Marker()
+
+    marker.type = Marker.CUBE
+    marker.scale.x = msg.scale * 0.25
+    marker.scale.y = msg.scale * 0.25
+    marker.scale.z = msg.scale * 0.25
+    marker.color.r = 0.5
+    marker.color.g = 0.5
+    marker.color.b = 0.5
+    marker.color.a = 1.0
+
+    return marker
+
+
+def makeMarkerControl( msg, mtype='axis' ):
     control =  InteractiveMarkerControl()
     control.always_visible = True
-    control.markers.append( makeBox(msg) )
+    if mtype == 'axis':
+        control.markers.append( makePointAxisMarker(msg) )
+    elif mtype == 'box':
+        control.markers.append( makeBoxMarker(msg) )
+    elif mtype == 'line':
+        control.markers.append( makePointLineMarker(msg) )
     msg.controls.append( control )
     return control
-
 
 #####################################################################
 # Marker Creation
 
-def make6DofMarker( fixed ):
+def make6DofMarker( fixed, single_axis=False):
     global server
     int_marker = InteractiveMarker()
     int_marker.header.frame_id = "/base_footprint"
     int_marker.scale = 0.05
 
-    int_marker.name = "tfm_marker"
-    int_marker.description = "Transform finder"
-
-    # insert a box
-    makeBoxControl(int_marker)
+    # insert a marker
+    if single_axis:
+        int_marker.name = "dir_marker"
+        int_marker.description = "Direction finder"
+        makeMarkerControl(int_marker, 'line')        
+    else:
+        int_marker.name = "pose_marker"
+        int_marker.description = "Transform finder"
+        makeMarkerControl(int_marker)
 
     if fixed:
         int_marker.name += "_fixed"
         int_marker.description += "\n(fixed orientation)"
 
     control = InteractiveMarkerControl()
-#     
-#     import IPython
-#     IPython.embed()
-    
     control.orientation.w = 1
     control.orientation.x = 1
     control.orientation.y = 0
@@ -204,6 +245,56 @@ def make6DofMarker( fixed ):
     server.insert(int_marker, nullCallback)
     menu_handler.apply( server, int_marker.name )
 
+def makeMoveMarker( ):
+    global server
+    int_marker = InteractiveMarker()
+    int_marker.header.frame_id = "/base_footprint"
+    int_marker.scale = 0.05
+
+    int_marker.name = "pos_marker"
+    int_marker.description = "Position finder"
+
+    # insert a marker
+    makeMarkerControl(int_marker, 'box')
+
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 1
+    control.orientation.y = 0
+    control.orientation.z = 0
+    control.name = "move_x"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 1
+    control.orientation.z = 0
+    control.name = "move_z"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    int_marker.controls.append(control)
+
+    control = InteractiveMarkerControl()
+    control.orientation.w = 1
+    control.orientation.x = 0
+    control.orientation.y = 0
+    control.orientation.z = 1
+    control.name = "move_y"
+    control.interaction_mode = InteractiveMarkerControl.MOVE_AXIS
+    int_marker.controls.append(control)
+
+    # make one control using default visuals
+    control = InteractiveMarkerControl()
+    control.interaction_mode = InteractiveMarkerControl.MENU
+    control.description="Options"
+    control.name = "menu_only_control"
+    int_marker.controls.append(copy.deepcopy(control))
+
+    server.insert(int_marker, nullCallback)
+    menu_handler.apply( server, int_marker.name )
+
 def test_markers ():
     global server, app, found, done
     found = False
@@ -215,7 +306,8 @@ def test_markers ():
     server = InteractiveMarkerServer("test_im")
     menu_handler.insert("Pose", callback=poseCallback)
 
-    make6DofMarker( False )
+    makeMoveMarker()
+    
     server.applyChanges()
     
     rospy.spin()

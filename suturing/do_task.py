@@ -55,7 +55,7 @@ from numpy import asarray
 import find_keypoints as fk, suturing_visualization_interface as svi
 
 subprocess.call("killall XnSensorServer", shell=True)
-    
+
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
     
@@ -263,6 +263,25 @@ def find_common_marker_poses (poses1, poses2, keys):
     return kp1, kp2
 
 
+def addBoxToRave (env, name, pos=None, halfExtents=None):
+    """
+    Adds a box of given position/half-extents to the rave Environment.
+    """
+    # default arguments, kind of
+    if pos is None or halfExtents is None:
+        if name == "table":
+            pos = [0.75,0,0.72]
+            halfExtents = [0.5,0.45,0.05]
+        elif name == "sponge":
+            pos = [0.5,0,0.8]
+            halfExtents = [0.25,0.3,0.03]
+        
+    with env:
+        body = openravepy.RaveCreateKinBody(env,'')
+        body.SetName(name)
+        body.InitFromBoxes(np.array([pos + halfExtents]),True)
+        env.AddKinBody(body,True)
+
 class Globals:
     # Rave
     env = None
@@ -312,7 +331,9 @@ def main():
         Globals.robot = Globals.env.GetRobots()[0]
         
     import trajoptpy.make_kinbodies as mk
-    Globals.env.Load("/home/sibi/sandbox/rapprentice/objects/table.xml")
+    #Globals.env.Load("/home/sibi/sandbox/rapprentice/objects/table.xml")
+    addBoxToRave(Globals.env, "table")
+    addBoxToRave(Globals.env, "sponge") # Not sure about this
     Globals.needle_tip = mk.create_spheres(Globals.env, [(0,0,0)], radii=0.02, name="needle_tip")
     Globals.demo_env = Globals.env.CloneSelf(1)
     Globals.demo_env.StopSimulation()
@@ -356,15 +377,11 @@ def main():
 
         handles = []
         
-        use_markers = seg_info.get('ar_marker_poses')
-        if use_markers is None:
+        if seg_info.get('ar_marker_poses') is None:
             use_markers = False
         else:
-            if seg_info.get('extra_information') and "ignore_markers" in seg_info['extra_information']:
-                use_markers = False
-            else:
-                use_markers = True
-            
+            use_markers = True
+
         if use_markers:
             old_marker_poses_str = seg_info['ar_marker_poses']
             old_marker_poses = {}
@@ -387,6 +404,7 @@ def main():
             new_keypoints, new_marker_poses = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k, use_markers)
 
 
+        print "Warping the points for the new situation."
 
         # Points from keypoints
         old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
@@ -416,6 +434,9 @@ def main():
             handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
             handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
 
+        print 'Old points:', old_xyz
+        print 'New points:', new_xyz
+        
         if rigid:
             f = registration.ThinPlateSpline()
             rel_tfm = new_xyz.dot(np.linalg.inv(old_xyz))
@@ -423,7 +444,7 @@ def main():
         elif len(new_xyz) > 0:
                 #f.fit(demopoints_m3, newpoints_m3, 10,10)
                 # TODO - check if this regularization on bending is correct
-                f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=1e-3,rot_coef=.01)
+                f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=1e-5,rot_coef=.01)
                 np.set_printoptions(precision=3)
                 print "nonlinear part", f.w_ng
                 print "affine part", f.lin_ag
@@ -483,16 +504,15 @@ def main():
                         old_ee_traj.append(demo_link.GetTransform())
                 
                 old_ee_traj = np.asarray(old_ee_traj)
-                
                 old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
 
                 if arm_moved(old_joint_traj):
                     
                     manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
-                    new_ee_traj = f.transform_hmats(old_ee_traj)                
+                    new_ee_traj = f.transform_hmats(old_ee_traj)
                     handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
                     handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
-                
+
                     if args.execution: Globals.pr2.update_rave()
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
                                                       link, new_ee_traj, old_joint_traj)
@@ -507,7 +527,7 @@ def main():
             for lr in 'lr':
                 set_gripper_maybesim(lr, binarize_gripper(seg_info["%s_gripper_joint"%lr][i_start]))
             #trajoptpy.GetViewer(Globals.env).Idle()
-        
+
             if len(bodypart2traj) > 0:
                 exec_traj_maybesim(bodypart2traj, speed_factor=0.1)
         
@@ -517,7 +537,6 @@ def main():
                 break
             
         redprint("Segment %s result: %s"%(seg_name, success))
-    
     
         if args.fake_data_segment: break
 

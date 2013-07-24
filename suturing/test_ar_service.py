@@ -6,7 +6,6 @@ from ar_track_service.srv import MarkerPositions, MarkerPositionsRequest, Marker
 from ar_track_alvar.msg import AlvarMarkers
 from sensor_msgs.msg import PointCloud2
 import cloudprocpy
-import numpy as np
 import tf
 
 import threading as th
@@ -15,8 +14,6 @@ import threading as th
 from rapprentice import ros_utils as ru, clouds, berkeley_pr2, conversions as conv
 
 import subprocess, time
-subprocess.call("killall XnSensorServer", shell=True)
-
 rospy.init_node('test_ar_service')
 
 rospy.wait_for_service('getMarkers')
@@ -62,32 +59,6 @@ def getPoses ():
     req.pc = pc
     return getMarkers(req)
 
-
-
-# def testTransforms (tfms, child_frames, parent_frames, time = 25):
-#     """
-#     Basic code to test transforms. Visualize on RViz or something.
-#     """
-#     
-#     initTime  = rospy.Time.now()
-#     totTime = rospy.Duration(time)
-# 
-#     if not time:
-#         foreverCheck = True
-#     else:
-#         foreverCheck = False
-#     
-#     try:
-#         while foreverCheck or (rospy.Time.now() - initTime < totTime):
-#             for tfm, child_frame, parent_frame in zip(tfms, child_frames,parent_frames):
-#                 (trans, rot) = conv.hmat_to_trans_rot(tfm)
-#                 br.sendTransform(trans, rot,
-#                                  rospy.Time.now(),
-#                                  child_frame,
-#                                  parent_frame)
-#                 rate.sleep()
-#     except KeyboardInterrupt:
-#         return
 
 def displayMarkerTfm ():
     global parent_frames, child_frames, tfms

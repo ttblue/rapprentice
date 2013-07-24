@@ -59,7 +59,7 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
             kp = raw_input('Which key points are important for this segment?\nChoices are: ' + str(svi.KEYPOINTS) + '.\n Please only enter one key point at a time: ')
             if kp not in svi.KEYPOINTS:
                 print 'Invalid keypoint: %s'%kp
-            elif kp in keypoint_info.keys():
+            elif svi.KEYPOINTS_FULL[kp] in keypoint_info.keys():
                 if yes_or_no('Already have information for %s. Overwrite?'%kp):
                     kp_loc = svi.find_kp_processing(kp, frame_stamps[i], Twk, video_dir)
                     if kp_loc is None:
@@ -87,8 +87,6 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
                 seg_infos[i]['extra_information'].append("l_grab")
             else:
                 seg_infos[i]['extra_information'].append("r_grab")
-        if yes_or_no('Would you like to ignore the markers for this segment'):
-            seg_infos[i]['extra_information'].append("ignore_markers")
 
     return seg_infos
 
@@ -124,9 +122,11 @@ def key_points_to_points (keypoints):
     """
     Converts key-points into points.
     """
+    keys = keypoints.keys()
+    keys.sort()
     points = []
     dist = 0.1
-    for key in keypoints:
+    for key in keys:
         loc = np.array(keypoints[key])
         # Not warping based on this
         if key == 'needle_tip_transform':
