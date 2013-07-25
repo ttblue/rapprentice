@@ -15,6 +15,46 @@ def nan2zero(x):
     np.putmask(x, np.isnan(x), 0)
     return x
 
+KERNEL_SCALING_2D = 4.
+def tps_apply_kernel(distmat, dim):
+    """
+    if d=2: 
+        k(r) = 4 * r^2 log(r)
+       d=3:
+        k(r) = -r
+            
+    import numpy as np, scipy.spatial.distance as ssd
+    x = np.random.rand(100,2)
+    d=ssd.squareform(ssd.pdist(x))
+    print np.clip(np.linalg.eigvalsh( 4 * d**2 * log(d+1e-9) ),0,inf).mean()
+    print np.clip(np.linalg.eigvalsh(-d),0,inf).mean()
+    
+    Note the actual coefficients (from http://www.geometrictools.com/Documentation/ThinPlateSplines.pdf)
+    d=2: 1/(8*sqrt(pi)) = 0.070523697943469535
+    d=3: gamma(-.5)/(16*pi**1.5) = -0.039284682964880184
+    """
+
+    if dim==2:       
+        return KERNEL_SCALING_2D * distmat**2 * np.log(distmat+1e-20)
+        
+    elif dim ==3:
+        return -distmat
+    else:
+        raise NotImplementedError
+    
+    
+def tps_kernel_matrix(x_na):
+    dim = x_na.shape[1]
+    distmat = ssd.squareform(ssd.pdist(x_na))
+    return tps_apply_kernel(distmat,dim)
+
+
+def tps_kernel_matrix2(x_na, y_ma):
+    dim = x_na.shape[1]
+    distmat = ssd.cdist(x_na, y_ma)
+    return tps_apply_kernel(distmat, dim)
+
+
 def tps_eval(x_ma, lin_ag, trans_g, w_ng, x_na):
     """
     Evaluate TPS function. 
@@ -263,48 +303,57 @@ def solve_eqp1(H, f, A):
 
     _u,_s,_vh = np.linalg.svd(A.T)
     N = _u[:,n_cnts:]
-    # columns of N span the null space
+    # columns of N span the null space of A
     
     # x = Nz
-    # then problem becomes unconstrained minimization .5*z'NHNz + z'Nf
-    # NHNz + Nf = 0
+    # then problem becomes unconstrained minimization .5*z'N'HNz + z'N'f
+    # N'HNz + N'f = 0 --> gradient = 0
     z = np.linalg.solve(N.T.dot(H.dot(N)), -N.T.dot(f))
     x = N.dot(z)
     
     return x
     
     
-def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
+def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None, K_nn = None):
     if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
-    assert d == 3
-    K_nn = ssd.squareform(ssd.pdist(x_na))
+
+    if K_nn is None: K_nn = tps_kernel_matrix(x_na)
     
-    # Only considering diagonal blocks for this, because of trace
-    Q = np.c_[np.ones((n,1)), x_na, K_nn]
+    Q = np.empty((n,n+d+1))
+    Q[:,0] = 1
+    Q[:,1:d+1] = x_na
+    Q[:,d+1:n+d+1] = K_nn
+
     WQ = wt_n[:,None] * Q
     QWQ = Q.T.dot(WQ)
     H = QWQ
+    H[d+1:,d+1:] += bend_coef * K_nn
+
+    rot_coefs = np.ones(d) * rot_coef if np.isscalar(rot_coef) else rot_coef
+    if rot_target is None: rot_target = np.eye(3)
+
+    D = np.diag(rot_coefs)
+    RD = rot_target.dot(D)
+    sRD = .5*(RD + RD.T)
     
-    H[4:,4:] -= bend_coef * K_nn # -K_nn is conditionally positive definite (CPD)
-    H[1:4, 1:4] += rot_coef * np.eye(3)
-    
-    # H (along with f) forces takes care of ||Y - KA - XB - 1^TC|| because Y^TY is constant.
-    # It also enforces the bend and rot coeffs 
-    # A enforces the moment constraints
-    
-    # There seems to be an extra n at X[0,0]
+    H[1:d+1, 1:d+1] += D
+    # H takes care of ||KA + XB + 1^TC|| along with the rotation and bending.
+    # tr(x'Hx) without the constraints is basically purely the frobenius norm of the thing above. 
     
     f = -WQ.T.dot(y_ng)
-    f[1:4,0:3] -= rot_coef * np.eye(3)
+    f[1:d+1,0:d] -= RD
+    # f takes care of the cross terms for Y.
+
+    # The rotation minimized is rot_coeff*tr(B'B - 2B)
+    # min tr(B'B - 2B) = min tr(B'B - IB - B'I) = min tr((B-I)'(B-I)) = min ||B-I||
     
-    # A basially only for w_ng
-    A = np.r_[np.zeros((4,4)), np.c_[np.ones((n,1)), x_na]].T
+    A = np.r_[np.zeros((d+1,d+1)), np.c_[np.ones((n,1)), x_na]].T
+    # A for the constraints
     
     Theta = solve_eqp1(H,f,A)
     
-    return Theta[1:4], Theta[0], Theta[4:]
-    
+    return Theta[1:d+1], Theta[0], Theta[d+1:]
     
     
 def tps_fit2(x_na, y_ng, bend_coef, rot_coef, wt_n=None):

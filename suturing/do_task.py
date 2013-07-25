@@ -150,8 +150,6 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     
     
     s = json.dumps(request)
-    print s
-    print type(s)
     prob = trajoptpy.ConstructProblem(s, Globals.env) # create object that stores optimization problem
     result = trajoptpy.OptimizeProblem(prob) # do optimization
     traj = result.GetTraj()    
@@ -273,14 +271,15 @@ def addBoxToRave (env, name, pos=None, halfExtents=None):
             pos = [0.75,0,0.72]
             halfExtents = [0.5,0.45,0.05]
         elif name == "sponge":
-            pos = [0.5,0,0.8]
-            halfExtents = [0.25,0.3,0.03]
+            pos = [0.6,0,0.8]
+            halfExtents = [0.3,0.3,0.015]
         
     with env:
         body = openravepy.RaveCreateKinBody(env,'')
         body.SetName(name)
         body.InitFromBoxes(np.array([pos + halfExtents]),True)
         env.AddKinBody(body,True)
+    return body
 
 class Globals:
     # Rave
@@ -295,7 +294,7 @@ class Globals:
 
     # PR2 control
     pr2 = None
-    
+    sponge = None
 
 def setup_needle_traj (lr, arm_traj, old_tfm, new_tfm):
     
@@ -333,14 +332,13 @@ def main():
     import trajoptpy.make_kinbodies as mk
     #Globals.env.Load("/home/sibi/sandbox/rapprentice/objects/table.xml")
     addBoxToRave(Globals.env, "table")
-    addBoxToRave(Globals.env, "sponge") # Not sure about this
+    Globals.sponge = addBoxToRave(Globals.env, "sponge") # Not sure about this
     Globals.needle_tip = mk.create_spheres(Globals.env, [(0,0,0)], radii=0.02, name="needle_tip")
     Globals.demo_env = Globals.env.CloneSelf(1)
     Globals.demo_env.StopSimulation()
     Globals.demo_robot = Globals.demo_env.GetRobot("pr2")
     Globals.demo_needle_tip = Globals.demo_env.GetKinBody("needle_tip")
     
-
     if not args.fake_data_segment:
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
@@ -348,6 +346,8 @@ def main():
     #Globals.viewer = trajoptpy.GetViewer(Globals.env)
     print "j"
     #####################
+    
+    Globals.env.SetViewer('qtcoin')
 
     while True:
         
@@ -431,8 +431,9 @@ def main():
                 new_xyz = new_m_xyz
                 
         if new_xyz.any() and new_xyz.shape != (4,4):
-            handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
-            handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
+            #handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
+            #handles.append(Globals.env.plot3(old_xyz,5, np.array([(1,0,0) for _ in xrange(old_xyz.shape[0])])))
+            handles.append(Globals.env.plot3(new_xyz,5, np.array([(0,0,1) for _ in xrange(old_xyz.shape[0])])))
 
         print 'Old points:', old_xyz
         print 'New points:', new_xyz
@@ -442,23 +443,27 @@ def main():
             rel_tfm = new_xyz.dot(np.linalg.inv(old_xyz))
             f.init_rigid_tfm(rel_tfm)
         elif len(new_xyz) > 0:
-                #f.fit(demopoints_m3, newpoints_m3, 10,10)
-                # TODO - check if this regularization on bending is correct
-                f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=1e-5,rot_coef=.01)
-                np.set_printoptions(precision=3)
-                print "nonlinear part", f.w_ng
-                print "affine part", f.lin_ag
-                print "translation part", f.trans_g
-                print "residual", f.transform_points(old_xyz) - new_xyz
+            #f.fit(demopoints_m3, newpoints_m3, 10,10)
+            # TODO - check if this regularization on bending is correct
+            f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=5,rot_coef=0.1)
+            np.set_printoptions(precision=3)
+            print "nonlinear part", f.w_ng
+            print "affine part", f.lin_ag
+            print "translation part", f.trans_g
+            print "residual", f.transform_points(old_xyz) - new_xyz
         else:
             f = registration.ThinPlateSpline()            
         
+        
+        if old_xyz.any() and old_xyz.shape != (4,4):
+            tfm_xyz = f.transform_points(old_xyz)
+            handles.append(Globals.env.plot3(tfm_xyz,5, np.array([(0,1,0) for _ in xrange(tfm_xyz.shape[0])])))
         
         #f = registration.ThinPlateSpline() XXX XXX
         
         if new_xyz.any() and new_xyz.shape != (4,4):
             handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
-        
+
         
         # TODO plot
         # plot_warping_and_trajectories(f, old_xyz, new_xyz, old_ee_traj, new_ee_traj)
@@ -492,9 +497,11 @@ def main():
         
             for lr in 'lr':
                 if use_needle:
+                    Globals.sponge.Enable(False)
                     old_ee_traj = setup_needle_traj (lr, ds_traj, seg_info["key_points"]["needle_tip_transform"])
                     link = Globals.needle_tip.GetLinks()[0]
                 else:
+                    Globals.sponge.Enable(True)
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     link = Globals.robot.GetLink(ee_link_name)
                     demo_link = Globals.demo_robot.GetLink(ee_link_name)
@@ -538,6 +545,7 @@ def main():
             
         redprint("Segment %s result: %s"%(seg_name, success))
     
+        print handles
         if args.fake_data_segment: break
 
 def openloop():

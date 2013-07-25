@@ -129,7 +129,7 @@ def find_kp_single_cloud (kp, xyz_tf, rgb_img):
     print kp, '3d location', x, y, z
 
     #return (x, y, z), (col_kp, row_kp)
-    return [x, y, z]
+    return [dx, y, z]
 
 def find_kp_processing (kp, frame_stamp, tfm, video_dir):
     """

@@ -107,7 +107,7 @@ class ThinPlateSpline(Transformation):
         return grad_mga
         
 
-def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None):
+def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None, rot_target = None):
     """
     x_na: source cloud
     y_nd: target cloud
@@ -116,9 +116,9 @@ def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None):
     wt_n: weight the points        
     """
     f = ThinPlateSpline()
-    f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n)
+    f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = rot_target)
     f.x_na = x_na
-    return f        
+    return f   
 
 def fit_ThinPlateSpline_RotReg(x_na, y_ng, bend_coef = .1, rot_coefs = (0.01,0.01,0.0025),scale_coef=.01):
     import fastrapp

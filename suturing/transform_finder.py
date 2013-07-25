@@ -107,6 +107,9 @@ def createPointLine (marker, d=0.1, n=50.0):
 def makePointAxisMarker( msg ):
     marker = Marker()
 
+#     marker.pose.position.x = 0.5
+#     marker.pose.position.z = 1
+    
     marker.type = Marker.POINTS
     marker.scale.x = msg.scale * 0.05
     marker.scale.y = msg.scale * 0.05
@@ -122,6 +125,9 @@ def makePointAxisMarker( msg ):
 def makePointLineMarker( msg ):
     marker = Marker()
 
+#     marker.pose.position.x = 0.5
+#     marker.pose.position.z = 1
+
     marker.type = Marker.POINTS
     marker.scale.x = msg.scale * 0.05
     marker.scale.y = msg.scale * 0.05
@@ -136,6 +142,9 @@ def makePointLineMarker( msg ):
 
 def makeBoxMarker( msg ):
     marker = Marker()
+
+#     marker.pose.position.x = 0.5
+#     marker.pose.position.z = 1
 
     marker.type = Marker.CUBE
     marker.scale.x = msg.scale * 0.25
