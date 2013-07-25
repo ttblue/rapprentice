@@ -16,11 +16,8 @@ def nan2zero(x):
     np.putmask(x, np.isnan(x), 0)
     return x
 
-<<<<<<< HEAD
 KERNEL_SCALING_2D = 4.
-=======
 
->>>>>>> upstream/master
 def tps_apply_kernel(distmat, dim):
     """
     if d=2: 
@@ -40,33 +37,22 @@ def tps_apply_kernel(distmat, dim):
     """
 
     if dim==2:       
-<<<<<<< HEAD
         return KERNEL_SCALING_2D * distmat**2 * np.log(distmat+1e-20)
-=======
-        return 4 * distmat**2 * np.log(distmat+1e-20)
->>>>>>> upstream/master
-        
+
     elif dim ==3:
         return -distmat
     else:
-        raise NotImplementedError
-    
+        raise NotImplementedError    
     
 def tps_kernel_matrix(x_na):
     dim = x_na.shape[1]
     distmat = ssd.squareform(ssd.pdist(x_na))
     return tps_apply_kernel(distmat,dim)
 
-<<<<<<< HEAD
-
-=======
->>>>>>> upstream/master
 def tps_kernel_matrix2(x_na, y_ma):
     dim = x_na.shape[1]
     distmat = ssd.cdist(x_na, y_ma)
     return tps_apply_kernel(distmat, dim)
-
-<<<<<<< HEAD
 
 def tps_eval(x_ma, lin_ag, trans_g, w_ng, x_na):
     """
@@ -85,13 +71,9 @@ def tps_eval(x_ma, lin_ag, trans_g, w_ng, x_na):
     
     # Calculate Kernel matrix - 
     # Radial basis functions associated with vector weights for each initial point  
-    K_mn = ssd.cdist(x_ma, x_na)
+    K_mn = tps_kernel_matrix2(x_ma, x_na)
     
     # Warp (mxn*nx3) + Linear (mx3*3x3) + Translation ("x3)
-=======
-def tps_eval(x_ma, lin_ag, trans_g, w_ng, x_na):
-    K_mn = tps_kernel_matrix2(x_ma, x_na)
->>>>>>> upstream/master
     return np.dot(K_mn, w_ng) + np.dot(x_ma, lin_ag) + trans_g[None,:]
 
 def tps_grad(x_ma, lin_ag, _trans_g, w_ng, x_na):
@@ -108,15 +90,11 @@ def tps_grad(x_ma, lin_ag, _trans_g, w_ng, x_na):
     _N, D = x_na.shape
     M = x_ma.shape[0]
 
-<<<<<<< HEAD
     # Calculate Kernel matrix - 
     # vector weights for radial basis functions associated with each initial point  
-=======
-    assert x_ma.shape[1] == 3
->>>>>>> upstream/master
     dist_mn = ssd.cdist(x_ma, x_na,'euclidean')
-    
-    
+    dist_mn = dist_mn + 1e-14
+
     grad_mga = np.empty((M,D,D))
 
     # Column vectors as opposed to row vectors
@@ -124,19 +102,19 @@ def tps_grad(x_ma, lin_ag, _trans_g, w_ng, x_na):
     for a in xrange(D):
         # Creates mxn matrix D, Dij = xm_i-xn_j
         diffa_mn = x_ma[:,a][:,None] - x_na[:,a][None,:]
-<<<<<<< HEAD
         # Lim dx -> 0 (||x + e_i*dx|| - ||x||)/dx = x_i/||x||
         # Jacobian of linear part -> same thing
         # Jacobian of translation -> 0
         # Jacobian of warping -> each weight vector now has a contribution given by above limit
-        grad_mga[:,:,a] = lin_ga[None,:,a] + np.dot(nan2zero(diffa_mn/dist_mn),w_ng)
-=======
-        grad_mga[:,:,a] = lin_ga[None,:,a] - np.dot(nan2zero(diffa_mn/dist_mn),w_ng)
->>>>>>> upstream/master
+        if D == 3:
+            grad_mga[:,:,a] = lin_ga[None,:,a] + -1 * np.dot(diffa_mn/dist_mn,w_ng)
+        elif D == 2:
+            grad_mga[:,:,a] = lin_ga[None,:,a] + KERNEL_SCALING_2D * np.dot(diffa_mn * (1 + 2*np.log(dist_mn)) ,w_ng)
+        else:
+            raise NotImplementedError
     return grad_mga
 
 
-# TODO: Understand this shit
 def tps_nr_grad(x_ma, lin_ag, _trans_g, w_ng, x_na, return_tuple = False):
     """
     gradient of green's strain
@@ -157,12 +135,8 @@ def tps_nr_grad(x_ma, lin_ag, _trans_g, w_ng, x_na, return_tuple = False):
 
     # Not even going to bother. mngab? mabng? wtf
     # m n g a b
-<<<<<<< HEAD
     # Some weird Warp Jacobian
-    Jw_mngab = (nan2zero(diffs_mna[:,:,None,:,None]/dists_mn[:,:,None,None,None])) * grad_mga[:,None,:,None,:]
-=======
     Jw_mngab = - (nan2zero(diffs_mna[:,:,None,:,None]/dists_mn[:,:,None,None,None])) * grad_mga[:,None,:,None,:]
->>>>>>> upstream/master
     Jw_mngab = Jw_mngab + Jw_mngab.transpose(0,1,2,4,3)        
     Jw_mabng = Jw_mngab.transpose(0,3,4,1,2)
     Jw = Jw_mabng.reshape(M*D**2,N*D)
@@ -308,8 +282,6 @@ def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None, K_nn = None):
     trans_g = X[N+D,:]
     return lin_ag, trans_g, w_ng
     
-
-
     
 def solve_eqp1(H, f, A):
     """solve equality-constrained qp
@@ -333,8 +305,10 @@ def solve_eqp1(H, f, A):
     x = N.dot(z)
     
     return x
-    
-    
+
+
+# @profile    
+
 def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None, K_nn = None):
     if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
@@ -357,7 +331,7 @@ def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None, K_nn = No
     D = np.diag(rot_coefs)
     RD = rot_target.dot(D)
     sRD = .5*(RD + RD.T)
-    
+
     H[1:d+1, 1:d+1] += D
     # H takes care of ||KA + XB + 1^TC|| along with the rotation and bending.
     # tr(x'Hx) without the constraints is basically purely the frobenius norm of the thing above. 
