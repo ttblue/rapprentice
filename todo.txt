@@ -1,2 +1,0 @@
-- registration kinda sucks. parameters?
-- allow user to separate raw data from yaml files and hdf5

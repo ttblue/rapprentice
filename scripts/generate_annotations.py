@@ -30,7 +30,6 @@ def normal_gen(bagfile, outfile):
     with open(args.outfile,"w") as fh:
         yaml.dump(seg_infos,fh)
         
-
 def suture_gen(bagfile, outfile):
     bag = rosbag.Bag(args.bagfile)
     stamps, meanings = bag_proc.extract_joy(bag)

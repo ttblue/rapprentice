@@ -7,11 +7,8 @@ def request_int_in_range(too_high_val):
     while True:
         try:
             choice_ind = int(raw_input())
-            if choice_ind <= too_high_val:
-                return choice_ind
-        except KeyboardInterrupt:
-            print "Found Keyboard Interrupt"
-            exit(0)
-        except:
+        except ValueError:            
             pass
-        print "Invalid selection. Try again."
+        if choice_ind <= too_high_val:
+            return choice_ind
+        print "Invalid selection. Try again"

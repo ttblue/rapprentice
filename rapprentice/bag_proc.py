@@ -69,6 +69,11 @@ def joy_to_annotations(stamps, meanings):
     ind_tuples = find_disjoint_subsequences(meanings, ["look","start","stop"])
     for tup in ind_tuples:
         out.append({"look":stamps[tup[0]], "start":stamps[tup[1]], "stop":stamps[tup[2]]})
+    
+    done_inds = [i for (i,meaning) in enumerate(meanings) if meaning=="done"]
+    for ind in done_inds:
+        out.append({"done":None,"look":stamps[ind], "start":stamps[ind], "stop":stamps[ind]+1})
+    
     return out
 
 def add_kinematics_to_group(group, linknames, manipnames, jointnames, robot):
@@ -129,8 +134,9 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         
         stamps_seg = stamps[i_start:i_stop+1]
         traj_seg = traj[i_start:i_stop+1]
-         
-        sample_inds = fastrapp.resample(traj_seg, [], .01)
+        sample_inds = fastrapp.resample(traj_seg, np.arange(len(traj_seg)), .01, np.inf, np.inf)
+        print "trajectory has length", len(sample_inds),len(traj_seg)
+
     
         traj_ds = traj_seg[sample_inds,:]
         stamps_ds = stamps_seg[sample_inds]
@@ -140,7 +146,7 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         group.create_group("joint_states")
         group["joint_states"]["name"] = joint_names
         group["joint_states"]["position"] = traj_ds
-        link_names = ["l_gripper_tool_frame","r_gripper_tool_frame"]
+        link_names = ["l_gripper_tool_frame","r_gripper_tool_frame","l_gripper_r_finger_tip_link","l_gripper_l_finger_tip_frame","r_gripper_r_finger_tip_link","r_gripper_l_finger_tip_frame"]
         special_joint_names = ["l_gripper_joint", "r_gripper_joint"]
         manip_names = ["leftarm", "rightarm"]
         
@@ -168,8 +174,12 @@ def get_video_frames(video_dir, frame_stamps):
     rgbs = []
     depths = []
     for frame_ind in frame_inds:
-        rgbs.append(cv2.imread(osp.join(video_dir,"rgb%.2i.jpg"%frame_ind)))
-        depths.append(cv2.imread(osp.join(video_dir,"depth%.2i.png"%frame_ind),2))
+        rgb = cv2.imread(osp.join(video_dir,"rgb%i.jpg"%frame_ind))
+        assert rgb is not None
+        rgbs.append(rgb)
+        depth = cv2.imread(osp.join(video_dir,"depth%i.png"%frame_ind),2)
+        assert depth is not None
+        depths.append(depth)
     return rgbs, depths
 
 def get_num_frames(video_dir, frame_stamp, num_frames):
