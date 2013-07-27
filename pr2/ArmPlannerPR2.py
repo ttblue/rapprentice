@@ -150,15 +150,6 @@ class PlannerPR2 (PR2):
         self.addSpongeToRave()
         self.addNeedleToRave()
         
-        
-    def gotoArmPosture (self, pos):
-        """
-        Makes both arms go to the specified posture.
-        """
-        self.larm.goto_posture(pos)
-        self.rarm.goto_posture(pos)
-        self.join_all()
-        
     def addTableToRave (self):
         """
         Adds a box of predefined position/ half-extents to

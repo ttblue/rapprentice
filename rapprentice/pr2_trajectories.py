@@ -110,7 +110,7 @@ def follow_body_traj(pr2, bodypart2traj, wait=True, base_frame = "/base_footprin
             elif name == "base":
                 part.follow_timed_trajectory(times_up, part_traj, base_frame)
                 
-    if wait: pr2.join_all()    
+    if wait: pr2.join_all()
     
     return True
 

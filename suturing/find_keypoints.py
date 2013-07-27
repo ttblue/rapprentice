@@ -41,7 +41,9 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
     seg_infos = bp.joy_to_annotations(stamps, meanings)
 
     frame_stamps = [t["look"] for t in seg_infos]
+    print frame_stamps
     key_rgb_imgs, key_depth_imgs = bp.get_video_frames(video_dir, frame_stamps)
+    
 
     bag = rosbag.Bag(bagfile)
     jnames, jstamps, traj = bp.extract_joints(bag)
@@ -57,6 +59,8 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
         while True:
             svi.show_pointclouds([key_rgb_imgs[i]])
             kp = raw_input('Which key points are important for this segment?\nChoices are: ' + str(svi.KEYPOINTS) + '.\n Please only enter one key point at a time: ')
+            kp = kp.strip()
+
             if kp not in svi.KEYPOINTS:
                 print 'Invalid keypoint: %s'%kp
             elif svi.KEYPOINTS_FULL[kp] in keypoint_info.keys():
@@ -87,7 +91,10 @@ def create_annotations(stamps, meanings, bagfile, video_dir):
                 seg_infos[i]['extra_information'].append("l_grab")
             else:
                 seg_infos[i]['extra_information'].append("r_grab")
-
+        
+        if not seg_infos[i]["extra_information"]:
+            seg_infos[i]["extra_information"].append("nothing")
+        
     return seg_infos
 
 
@@ -118,27 +125,35 @@ def get_keypoints_execution (grabber, keys, tfm, use_markers):
         return keypoints, None
 
 
-def key_points_to_points (keypoints):
+def key_points_to_points (keypoints, use_ntt_kp):
     """
     Converts key-points into points.
     """
     keys = keypoints.keys()
     keys.sort()
     points = []
-    dist = 0.1
+    kp_mapping = {}
+    dist = 0.02
     for key in keys:
         loc = np.array(keypoints[key])
         # Not warping based on this
-        if key == 'needle_tip_transform':
+        if key == 'needle_tip_transform' and not use_ntt_kp:
+            kp_mapping[key] = [-1]
+            if len(keypoints) == 1:
+                return loc, True, kp_mapping
             continue
         # Will pull it out of marker poses based on common visible ones.
         if key in svi.MARKER_KEYPOINTS:
+            kp_mapping[key] = [-1]
             continue
         elif loc.shape == (4,4):
             if len(keypoints) == 1:
-                return loc, True
+                kp_mapping[key] = [-1]
+                return loc, True, kp_mapping
             # Unpack all the axes and the origin of the transform
             x,y,z,p = loc[0:3].T
+            n_p = len(points)
+            kp_mapping[key] = [n_p, n_p+1, n_p+2, n_p+3]
             points.append(p)
             points.append(p+dist*x)
             points.append(p+dist*y)
@@ -146,9 +161,33 @@ def key_points_to_points (keypoints):
         elif loc.shape == (2,3):
             # Unpack the point and its normal
             p,n = loc
+            n_p = len(points)
+            kp_mapping[key] = [n_p, n_p+1, n_p+2]
             points.append(p)
             points.append(p+dist*n/2)
             points.append(p+dist*n)
         elif key != "none":
+            kp_mapping[key] = [len(points)]
             points.append(loc)
-    return np.array(points), False
+            
+    if "right_hole_normal" in keys and "left_hole_normal" in keys:
+        h1, n1 = np.array(keypoints["right_hole_normal"])
+        h2, n2 = np.array(keypoints["left_hole_normal"])
+        n_p = len(points)
+        kp_mapping["hn_extra"] = [n_p, n_p+1, n_p+2, n_p+3]
+        for alpha in [0.2,0.4,0.6,0.8]:
+            points.append(h1*alpha + h2*(1-alpha))
+        
+        if "bottom_cut" not in keys or "middle_cut" not in keys:
+            
+            h = h2 - h1
+            hm = (h1+h2)/2
+            n = (n1+n2)/2
+            x = np.cross(h,n)
+            x = x/np.linalg.norm(x)
+            kp_mapping["hn_extra"].extend([n_p+4, n_p+5, n_p+6])
+            points.append(hm)
+            points.append(hm+dist*x)
+            points.append(hm-dist*x)
+
+    return np.array(points), False, kp_mapping

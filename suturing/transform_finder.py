@@ -94,9 +94,9 @@ def createPointLine (marker, d=0.1, n=50.0):
     t = 0.0
     while t < d:
         p = Point()
-        p.x = t
+        p.z = t
         c = ColorRGBA()
-        c.r, c.a = 1, 0.5
+        c.b, c.a = 1, 0.5
         
         marker.points.append(p)
         marker.colors.append(c)
@@ -181,6 +181,11 @@ def make6DofMarker( fixed, single_axis=False):
 
     int_marker.name = "pose_marker"
     int_marker.description = "Transform finder"
+
+    int_marker.pose.position.x = 0.5
+    int_marker.pose.position.y = 0
+    int_marker.pose.position.z = 1
+
 
     # insert a marker
     if single_axis:
@@ -276,6 +281,10 @@ def makeMoveMarker( ):
 
     int_marker.name = "pos_marker"
     int_marker.description = "Position finder"
+
+    int_marker.pose.position.x = 0.5
+    int_marker.pose.position.y = 0
+    int_marker.pose.position.z = 1
 
     # insert a marker
     makeMarkerControl(int_marker, 'box')

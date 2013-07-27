@@ -91,7 +91,6 @@ class PR2(object):
         self.robot = self.env.GetRobots()[0]
 
         self.joint_listener = TopicListener("/joint_states", sm.JointState)
-
         self.tf_listener = tf.TransformListener()
 
         # rave to ros conversions
@@ -154,6 +153,15 @@ class PR2(object):
 
     def update_rave_without_ros(self, joint_vals):
         self.robot.SetJointValues(joint_vals)
+
+    def gotoArmPosture (self, pos):
+        """
+        Makes both arms go to the specified posture.
+        """
+        self.larm.goto_posture(pos)
+        self.rarm.goto_posture(pos)
+        self.join_all()
+        
 
     def join_all(self):
         for thread in self.pending_threads:
@@ -222,8 +230,15 @@ class TrajectoryControllerWrapper(object):
 
     def follow_joint_trajectory(self, traj):
         traj = np.r_[np.atleast_2d(self.get_joint_positions()), traj]
-        for i in [2,4,6]:
-            traj[:,i] = np.unwrap(traj[:,i])
+#        for i in [2,4,6]:
+#            traj[:,i] = np.unwrap(traj[:,i])
+
+#         new_traj = [current]
+#         for dofs in traj:
+#             for i, dof in enumerate(dofs):
+#                 dofs[i] = closer_ang (dof, current[i])
+#             new_traj.append(dofs)
+#         traj = np.asarray(new_traj)
 
         times = retiming.retime_with_vel_limits(traj, self.vel_limits)
         times_up = np.arange(0,times[-1],.1)
@@ -398,7 +413,7 @@ class Torso(TrajectoryControllerWrapper):
 
 
 class Gripper(object):
-    default_max_effort = 40
+    default_max_effort = 100
     def __init__(self,pr2,lr):
         assert isinstance(pr2, PR2)
         self.pr2 = pr2

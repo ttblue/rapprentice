@@ -107,14 +107,16 @@ bagfilename = demo_name+".bag"
 if yes_or_no("save demo?"):
     annotations_gen_file = osp.join(os.getenv('RAPPRENTICE_SOURCE_DIR'), 'scripts', 'generate_annotations.py')
     annfilename = demo_name+".ann.yaml"
-    call_and_print(annotations_gen_file + " %s %s --annotation_func=%s"%(osp.join(dirname, bagfilename), osp.join(dirname, annfilename), args.annotation_func))
-
+    
     with open(args.master_file,"a") as fh:
         fh.write("\n"
             "- bag_file: %(bagfilename)s\n"
             "  annotation_file: %(annfilename)s\n"
             "  video_dir: %(videodir)s\n"
             "  demo_name: %(demoname)s"%dict(bagfilename=bagfilename, annfilename=annfilename, videodir=demo_name, demoname=demo_name))
+    
+    call_and_print(annotations_gen_file + " %s %s --annotation_func=%s"%(osp.join(dirname, bagfilename), osp.join(dirname, annfilename), args.annotation_func))
+
 else:
     if osp.exists(demo_name): shutil.rmtree(demo_name) #video dir
     if osp.exists(bagfilename): os.unlink(bagfilename)

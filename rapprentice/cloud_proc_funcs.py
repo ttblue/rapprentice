@@ -3,7 +3,7 @@ from rapprentice import berkeley_pr2, clouds
 import cv2, numpy as np
 # import skimage.morphology as skim
 import scipy.ndimage as ndi
-DEBUG_PLOTS=True
+DEBUG_PLOTS=False
 
 def extract_red(rgb, depth, T_w_k):
     """

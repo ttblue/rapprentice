@@ -152,19 +152,19 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         
         add_kinematics_to_group(group, link_names, manip_names, special_joint_names, robot)
         
-        if seg_info.get('key_points'):
+        if seg_info.get('key_points') is not None:
             group.create_group("key_points")
             for key in seg_info["key_points"]:
                 group["key_points"][key] = seg_info["key_points"][key]
-        if seg_info.get("ar_marker_poses"):
+        if seg_info.get("ar_marker_poses") is not None:
             group.create_group("ar_marker_poses")
             for i in seg_info["ar_marker_poses"]:
                 group["ar_marker_poses"][str(i)] = seg_info["ar_marker_poses"][i]
-        if seg_info.get('ree'):
+        if seg_info.get('ree') is not None:
             group["ree"] = seg_info["ree"]
-        if seg_info.get('lee'):
+        if seg_info.get('lee') is not None:
             group["lee"] = seg_info["lee"]
-        if seg_info.get('extra_information'):
+        if seg_info.get('extra_information') is not None:
             group["extra_information"] = seg_info["extra_information"]
 
 def searchsortednearest(a,v):
@@ -187,7 +187,7 @@ def get_video_frames(video_dir, frame_stamps):
     ind2rgbfname = dict([(int(osp.splitext(osp.basename(fname))[0][3:]), fname) for fname in rgbnames])
     ind2depthfname = dict([(int(osp.splitext(osp.basename(fname))[0][5:]), fname) for fname in depthnames])
     
-    print ind2depthfname
+    #print ind2depthfname
     
     rgbs = []
     depths = []

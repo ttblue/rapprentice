@@ -7,7 +7,7 @@ parser.add_argument("h5file", type=str)
 parser.add_argument("--openloop", type=int, default=0)
 parser.add_argument("--execution", type=int, default=0)
 parser.add_argument("--animation", type=int, default=0)
-
+parser.add_argument("--ask", type=int, default=0)
 parser.add_argument("--fake_data_segment",type=str)
 parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx","ty","tz","rx","ry","rz"),
     default=[0,0,0,0,0,0], help="translation=(tx,ty,tz), axis-angle rotation=(rx,ry,rz)")
@@ -16,7 +16,7 @@ parser.add_argument("--interactive",action="store_true")
 
 args = parser.parse_args()
 
-if args.fake_data_segment is None: assert args.execution==1
+#if args.fake_data_segment is None: assert args.execution==1
 
 ###################
 
@@ -40,10 +40,9 @@ If you're using fake data, don't update it.
 """
 
 
-from rapprentice import registration, colorize, berkeley_pr2, \
-     animate_traj, ros2rave, plotting_openrave, task_execution, resampling
+from rapprentice import registration, colorize, berkeley_pr2, yes_or_no, \
+     animate_traj, ros2rave, plotting_openrave, task_execution, resampling, PR2
 from rapprentice import pr2_trajectories, retiming, math_utils as mu
-from pr2 import PR2
 import rospy
 
 import subprocess
@@ -171,7 +170,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     
     
 def set_gripper_maybesim(lr, value):
-    if args.execution and not args.animation:
+    if args.execution:
         gripper = {"l":Globals.pr2.lgrip, "r":Globals.pr2.rgrip}[lr]
         gripper.set_angle(value)
         Globals.pr2.join_all()
@@ -215,7 +214,7 @@ def exec_traj_maybesim(bodypart2traj, speed_factor=0.5):
         
         Globals.robot.SetActiveDOFs(dof_inds)
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
-        return True
+        #return True
     if args.execution:
         pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=speed_factor)
         return True
@@ -244,6 +243,118 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     handles.append(Globals.env.plot3(ypred_nd, 3, (0,1,0)))
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, x_nd.min(axis=0), x_nd.max(axis=0), xres = .1, yres = .1, zres = .04))
     Globals.viewer.Step()
+    
+
+import threading as th, time
+from visualization_msgs.msg import Marker
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped, Pose
+from rapprentice import clouds, ros_utils as ru, conversions as conv
+from sensor_msgs.msg import PointCloud2
+
+
+class Globals:
+    # Rave
+    env = None
+    robot = None
+    demo_env = None
+    demo_robot = None
+    
+    # Needle tip
+    needle_tip = None
+    demo_needle_tip = None
+    rel_ntfm = None
+    demo_rel_ntfm = None
+
+    # PR2 control
+    pr2 = None
+    sponge = None
+
+
+
+class threadClass(th.Thread):
+    
+#     new_traj = None
+#     old_traj = None
+    grabber = None
+#     
+    def __init__(self):
+        th.Thread.__init__(self)
+        self.old_pub = rospy.Publisher('old_traj', Path)
+        self.new_pub = rospy.Publisher('new_traj', Path)
+        self.pc_pub = rospy.Publisher('scene_points', PointCloud2)
+        self.new_traj = Path()
+        self.old_traj = Path()
+#         self.old_traj.header.frame_id = "/base_footprint"
+#         self.new_traj.header.frame_id = "/base_footprint"
+        #self.new_traj = Marker()
+        #self.old_traj = Marker()
+        self.old_traj.header.frame_id = "/base_footprint"
+        #self.old_traj.name = "old_traj"
+        self.new_traj.header.frame_id = "/base_footprint"
+        #self.new_traj.name = "new_traj"
+#         self.old_traj.color.r = 1
+#         self.old_traj.color.a = 0.5        
+#         self.new_traj.color.b = 1
+#         self.new_traj.color.a = 0.5 
+#         self.old_traj.scale.x = 1
+#         self.old_traj.scale.y = 1
+#         self.old_traj.scale.z = 1
+#         self.new_traj.scale.x = 1
+#         self.new_traj.scale.y = 1
+#         self.new_traj.scale.z = 1
+#         self.new_traj.pose = Pose()
+#         self.old_traj.pose = Pose()  
+#         self.old_traj.type = Marker.POINTS
+#         self.new_traj.type = Marker.POINTS
+#     
+    
+    def get_PC (self):
+        r, d = self.grabber.getRGBD()
+        x = clouds.depth_to_xyz(d, berkeley_pr2.f)
+        if Globals.pr2 is not None:
+            Globals.pr2.update_rave()
+            tfm = berkeley_pr2.get_kinect_transform(Globals.robot)
+            x = x.dot(tfm[:3,:3].T) + tfm[:3,3][None,None,:]
+        return ru.xyzrgb2pc(x, r, 'base_footprint')
+    
+    def run (self):
+        while True:
+            self.publish()
+
+    def publish (self):
+        if self.grabber is not None:
+                pc = self.get_PC()
+                self.pc_pub.publish(pc)
+        self.old_pub.publish(self.old_traj)
+        self.old_pub.publish(self.new_traj)
+        time.sleep(0.1)
+        
+thc = threadClass()
+
+def update_markers (new_traj, old_traj):
+    
+    print new_traj
+    old_poses = [conv.hmat_to_pose(hmat) for hmat in old_traj]
+    old_poses_s = []
+    for pose in old_poses:
+        ps = PoseStamped()
+        ps.pose = pose
+        ps.header.frame_id = 'base_footprint'
+        old_poses_s.append(ps)
+    thc.old_traj.poses = old_poses_s
+     
+    new_poses = [conv.hmat_to_pose(hmat) for hmat in new_traj]
+    new_poses_s = []
+    for pose in new_poses:
+        ps = PoseStamped()
+        ps.pose = pose
+        ps.header.frame_id = 'base_footprint'
+        new_poses_s.append(ps)
+    thc.new_traj.poses = new_poses_s
+#     thc.old_traj = [conv.hmat_to_pose(hmat).position for hmat in old_traj]
+#     thc.new_traj = [conv.hmat_to_pose(hmat).position for hmat in new_traj]
+
 ###################
 
 # Use only the relevant AR markers
@@ -281,44 +392,63 @@ def addBoxToRave (env, name, pos=None, halfExtents=None):
         env.AddKinBody(body,True)
     return body
 
-class Globals:
-    # Rave
-    env = None
-    robot = None
-    demo_env = None
-    demo_robot = None
-    
-    # Needle tip
-    needle_tip = None
-    demo_needle_tip = None
 
-    # PR2 control
-    pr2 = None
-    sponge = None
-
-def setup_needle_traj (lr, arm_traj, old_tfm, new_tfm):
+def setup_needle_grabs (lr, old_tfm, new_tfm):
     
     Globals.demo_needle_tip.SetTransform(old_tfm)
     Globals.demo_robot.Grab(Globals.demo_needle_tip, Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr))
     Globals.needle_tip.SetTransform(new_tfm)
     Globals.robot.Grab(Globals.needle_tip, Globals.robot.GetLink("%s_gripper_tool_frame"%lr))
     
+    T_w_g = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+    T_w_n = new_tfm
+    Globals.rel_ntfm = np.linalg.inv(T_w_g).dot(T_w_n)
+    T_w_g_demo = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+    T_w_n_demo = old_tfm
+    Globals.demo_rel_ntfm = np.linalg.inv(T_w_g_demo).dot(T_w_n_demo)
+
+
+def setup_needle_traj (lr, arm_traj):    
     needle_traj = []
     for row in arm_traj:
         Globals.demo_robot.SetActiveDOFValues(row)
         needle_traj.append(Globals.demo_needle_tip.GetTransform())
     
     return needle_traj
+
+def unwrap_joint_traj (lr, new_joint_traj):
     
+    arm= {"l":Globals.pr2.larm, "r":Globals.pr2.rarm}[lr]
+    current_dofs = arm.get_joint_positions()
+    new_traj = []
+    for dofs in new_joint_traj:
+        for i in [4,6]:
+            dofs[i] = PR2.closer_ang(dofs[i], current_dofs[i])
+        new_traj.append(dofs)
+    new_traj = np.asarray(new_traj)
+    return new_traj
+#     new_roll_traj = np.mod(new_joint_traj[:,[4,6]], np.pi*2) # roll of wrist
+#     print new_roll_traj
+#     arm= {"l":Globals.pr2.larm, "r":Globals.pr2.rarm}[lr]
+#     current_val = arm.get_joint_positions()[[4,6]]
+#     current_val_wrapped = np.mod(current_val, 2*np.pi)
+#     offset = current_val - current_val_wrapped
+#     
+#     new_roll_traj = new_roll_traj + offset
+#     new_joint_traj[:,[4,6]] = new_roll_traj
+#     return new_joint_traj  
+
 
 def main():
 
     demofile = h5py.File(args.h5file, 'r')
     
     trajoptpy.SetInteractive(args.interactive)
-
+    rospy.init_node("exec_task",disable_signals=True)
+    
+    thc.start()
+    
     if args.execution:
-        rospy.init_node("exec_task",disable_signals=True)
         Globals.pr2 = PR2.PR2()
         Globals.env = Globals.pr2.env
         Globals.robot = Globals.pr2.robot
@@ -342,25 +472,18 @@ def main():
     if not args.fake_data_segment:
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
+        thc.grabber = grabber
 
     #Globals.viewer = trajoptpy.GetViewer(Globals.env)
     print "j"
     #####################
     
-    Globals.env.SetViewer('qtcoin')
+    #Globals.env.SetViewer('qtcoin')
+    #threadClass().start()
 
     while True:
-        
-    
         redprint("Acquire point cloud")
-        if not args.fake_data_segment:    
-            #Globals.pr2.rarm.goto_posture('side')
-            #Globals.pr2.larm.goto_posture('side')            
-            #Globals.pr2.join_all()
-            #Globals.pr2.update_rave()
-            T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)            
-
-    
+         
         ################################
         redprint("Finding closest demonstration")
         if args.fake_data_segment:
@@ -401,20 +524,27 @@ def main():
                 print "Keypoints don't match."
                 exit(1)
         else:
+            Globals.pr2.update_rave()
+            T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)
             new_keypoints, new_marker_poses = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k, use_markers)
 
 
         print "Warping the points for the new situation."
 
+        if "l_grab" in seg_info['extra_information'] or "r_grab" in seg_info['extra_information']:
+            use_ntt_kp = False
+        else:
+            use_ntt_kp = True
+
         # Points from keypoints
-        old_xyz, rigid = fk.key_points_to_points(seg_info['key_points'])
-        new_xyz, _ = fk.key_points_to_points(new_keypoints)
+        old_xyz, rigid, kp_mapping = fk.key_points_to_points(seg_info['key_points'], use_ntt_kp)
+        new_xyz, _, _ = fk.key_points_to_points(new_keypoints, use_ntt_kp)
 
         # Points from markers
         if use_markers:
             old_common_poses, new_common_poses = find_common_marker_poses(old_marker_poses, new_marker_poses, new_keypoints.keys())
-            old_m_xyz, rigid_m = fk.key_points_to_points(old_common_poses)
-            new_m_xyz, _ = fk.key_points_to_points(new_common_poses)
+            old_m_xyz, rigid_m, _ = fk.key_points_to_points(old_common_poses, False)
+            new_m_xyz, _, _ = fk.key_points_to_points(new_common_poses, False)
 
             if len(old_m_xyz) > 0 and rigid: rigid = False
             elif rigid_m and not old_xyz.any(): rigid = True
@@ -438,6 +568,7 @@ def main():
         print 'Old points:', old_xyz
         print 'New points:', new_xyz
         
+        #if not yes_or_no.yes_or_no("Use identity?"):
         if rigid:
             f = registration.ThinPlateSpline()
             rel_tfm = new_xyz.dot(np.linalg.inv(old_xyz))
@@ -445,16 +576,36 @@ def main():
         elif len(new_xyz) > 0:
             #f.fit(demopoints_m3, newpoints_m3, 10,10)
             # TODO - check if this regularization on bending is correct
-            f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=5,rot_coef=0.1)
+            if "right_hole_normal" in new_keypoints or "left_hole_normal" in new_keypoints:
+                bend_c = 0.05
+                rot_c = [1e-5,1e-5,0.1]
+                wt = 5
+                wt_n = np.ones(len(old_xyz))
+                if kp_mapping.get("right_hole_normal"):
+                    wt_n[kp_mapping["right_hole_normal"][0]] = wt
+                if kp_mapping.get("left_hole_normal"):
+                    wt_n[kp_mapping["left_hole_normal"][0]] = wt
+                print "Found hole normals"
+            else:
+                bend_c = 0.05
+                rot_c = 1e-5#[0,0,1e-5]
+                wt_n = None
+            f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef = bend_c,rot_coef = rot_c)
             np.set_printoptions(precision=3)
             print "nonlinear part", f.w_ng
             print "affine part", f.lin_ag
             print "translation part", f.trans_g
             print "residual", f.transform_points(old_xyz) - new_xyz
+            print "max error ", np.max(np.abs(f.transform_points(old_xyz) - new_xyz))
         else:
-            f = registration.ThinPlateSpline()            
-        
-        
+            f = registration.ThinPlateSpline()
+            bend_c = 0
+            rot_c = 0
+#         else:
+#             f = registration.ThinPlateSpline()            
+#             bend_c = 0
+#             rot_c = 0
+#         
         if old_xyz.any() and old_xyz.shape != (4,4):
             tfm_xyz = f.transform_points(old_xyz)
             handles.append(Globals.env.plot3(tfm_xyz,5, np.array([(0,1,0) for _ in xrange(tfm_xyz.shape[0])])))
@@ -464,15 +615,33 @@ def main():
         if new_xyz.any() and new_xyz.shape != (4,4):
             handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
 
+        if args.ask:
+            if new_xyz.any() and new_xyz.shape != (4,4):
+                import visualize
+                visualize.plot_tfm(old_xyz, new_xyz, bend_c, rot_c)
         
-        # TODO plot
-        # plot_warping_and_trajectories(f, old_xyz, new_xyz, old_ee_traj, new_ee_traj)
-    
-        use_needle = "needle_tip_transform" in seg_info['key_points'] and "%s_grab" in seg_info['extra_information']
-    
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
         success = True
         print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
+
+        # Assuming only lgrab or rgrab
+        use_needle = False
+        for lr in 'lr':        
+            if "%s_grab"%lr in seg_info['extra_information']:
+                if "needle_tip_transform" in seg_info['key_points']:
+                    demo_ntfm = np.array(seg_info['key_points']['needle_tip_transform'])
+                    ntfm = np.array(new_keypoints['needle_tip_transform'])
+                    use_needle = True
+                elif Globals.rel_ntfm is not None:
+                    T_w_g = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+                    T_g_n = Globals.rel_ntfm
+                    ntfm = T_w_g.dot(T_g_n)
+                    T_w_g_demo = Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+                    T_g_n_demo = Globals.demo_rel_ntfm
+                    demo_ntfm = T_w_g_demo.dot(T_g_n_demo)
+                    use_needle = True
+
+        
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
             if args.execution=="real": Globals.pr2.update_rave()
@@ -496,9 +665,28 @@ def main():
             arms_used = ""
         
             for lr in 'lr':
+                
+                if "%s_grab"%lr in seg_info['extra_information']:
+                    if "needle_tip_transform" in seg_info['key_points']:
+                        demo_ntfm = np.array(seg_info['key_points']['needle_tip_transform'])
+                        ntfm = np.array(new_keypoints['needle_tip_transform'])
+                        use_needle = True
+                    elif Globals.rel_ntfm is not None:
+                        T_w_g = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+                        T_g_n = Globals.rel_ntfm
+                        ntfm = T_w_g.dot(T_g_n)
+                        T_w_g_demo = Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+                        T_g_n_demo = Globals.demo_rel_ntfm
+                        demo_ntfm = T_w_g_demo.dot(T_g_n_demo)
+                        use_needle = True
+                    else:
+                        use_needle = False
+                else:
+                    use_needle = False
+                
                 if use_needle:
                     Globals.sponge.Enable(False)
-                    old_ee_traj = setup_needle_traj (lr, ds_traj, seg_info["key_points"]["needle_tip_transform"])
+                    old_ee_traj = setup_needle_traj (lr, ds_traj, demo_ntfm, ntfm)
                     link = Globals.needle_tip.GetLinks()[0]
                 else:
                     Globals.sponge.Enable(True)
@@ -519,14 +707,23 @@ def main():
                     new_ee_traj = f.transform_hmats(old_ee_traj)
                     handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
                     handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
+                    #old_poses = [conv.hmat_to_pose(hmat) for hmat in old_ee_traj]
+                    #print new_ee_traj
+                    #new_poses = [conv.hmat_to_pose(hmat) for hmat in new_ee_traj]
+                    update_markers(new_ee_traj, old_ee_traj)
+                    #thc.run()
+                    
 
                     if args.execution: Globals.pr2.update_rave()
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
                                                       link, new_ee_traj, old_joint_traj)
+                    new_joint_traj = unwrap_joint_traj (lr, new_joint_traj)
                     # (robot, manip_name, ee_link, new_hmats, old_traj):
                     part_name = {"l":"larm", "r":"rarm"}[lr]
                     bodypart2traj[part_name] = new_joint_traj
+                    
                     arms_used += lr
+
 
             ################################    
             redprint("Executing joint trajectory for segment %s, part %i using arms '%s'"%(seg_name, i_miniseg, arms_used))
@@ -536,7 +733,7 @@ def main():
             #trajoptpy.GetViewer(Globals.env).Idle()
 
             if len(bodypart2traj) > 0:
-                exec_traj_maybesim(bodypart2traj, speed_factor=0.1)
+                exec_traj_maybesim(bodypart2traj, speed_factor=1)
         
             # TODO measure failure condtions
 
@@ -545,15 +742,14 @@ def main():
             
         redprint("Segment %s result: %s"%(seg_name, success))
     
-        print handles
         if args.fake_data_segment: break
 
 def openloop():
     
     demofile = h5py.File(args.h5file, 'r')
+    rospy.init_node("exec_task",disable_signals=True)
     
     if args.execution:
-        rospy.init_node("exec_task",disable_signals=True)
         Globals.pr2 = PR2.PR2()
         Globals.env = Globals.pr2.env
         Globals.robot = Globals.pr2.robot

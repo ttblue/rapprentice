@@ -7,27 +7,30 @@ from rapprentice.colorize import colorize
 from rapprentice import bag_proc as bp, ros2rave, berkeley_pr2, clouds
 import transform_finder as tff
 
-KEYPOINTS = ['lh', 'rh', 'tc', 'mc', 'bc', 'ne', 'hn1', 'hn2', 'nt', 'ntt', 'stand', 'rzr', 'none']
+KEYPOINTS = ['lh', 'rh', 'tc', 'mc', 'bc', 'nh', 'lhn', 'rhn', 'nt', 'ntt', 'nht', 'stand', 'rzr', 'none']
 KEYPOINTS_FULL = {  'lh':'left_hole',
                     'rh': 'right_hole',
                     'tc': 'top_cut',
                     'mc': 'middle_cut',
                     'bc': 'bottom_cut',
-                    'ne': 'needle_end',
-                    'hn1': 'hole1_normal',
-                    'hn2': 'hole2_normal',
+                    'lhn': 'left_hole_normal',
+                    'rhn': 'right_hole_normal',
                     'nt': 'needle_tip',
+                    'nh': 'needle_handle',
                     'ntt': 'needle_tip_transform',
+                    'nht': 'needle_handle_tramsform',
                     'rzr': 'razor',
                     'stand': 'stand',
                     'none': 'none' }
 KEYPOINTS_SHORT = {KEYPOINTS_FULL[k]:k for k in KEYPOINTS_FULL}
+KEYPOINTS_SHORT["hole1_normal"] = "lhn"
+KEYPOINTS_SHORT["hole2_normal"] = "rhn"
 
 MARKER_KEYPOINTS = {'stand':[0,1,3]}
 SINGLE_POINT_KEYPOINTS = ['lh','rh','tc','mc','bc']
 INTERACTIVE_POSITION_KEYPOINTS = ['ne', 'rzr', 'nt']
-INTERACTIVE_DIRECTION_KEYPOINTS = ['hn1','hn2']
-INTERACTIVE_TRANSFORM_KEYPOINTS = ['ntt']
+INTERACTIVE_DIRECTION_KEYPOINTS = ['lhn','rhn']
+INTERACTIVE_TRANSFORM_KEYPOINTS = ['ntt', 'nht']
 
 WIN_NAME = 'Find Keypoints'
 
@@ -129,7 +132,92 @@ def find_kp_single_cloud (kp, xyz_tf, rgb_img):
     print kp, '3d location', x, y, z
 
     #return (x, y, z), (col_kp, row_kp)
-    return [dx, y, z]
+    return [float(x), float(y), float(z)]
+
+
+def find_kp_point_normal (kp, xyz_tf, rgb_img):
+    """
+    Find the point normal from single point cloud.
+    """
+    ### clicking set-up 
+    class GetClick:
+        x = None
+        y = None
+        done = False
+        def callback(self, event, x, y, flags, param):
+            if self.done:
+                return
+            elif event == cv2.EVENT_LBUTTONDOWN:
+                self.x = x
+                self.y = y
+                self.done = True
+    
+    
+    
+    print colorize('Click on the center of the %s.'%KEYPOINTS_FULL[kp], 'red', bold=True)
+    #print colorize('If this keypont is occluded, select the image window and press any key.', 'red', bold=True)
+    
+    gc = GetClick()
+    cv2.imshow(WIN_NAME, rgb_img)
+    cv2.setMouseCallback(WIN_NAME, gc.callback)
+    while not gc.done:
+        k = cv2.waitKey(100)
+        #TODO
+        #if k == -1:
+        #    continue
+        #else: 
+        #    last_loc, found_seg = 1,1#get_last_kp_loc(past_keypts, kp, current_seg)
+        #    print kp, 'found in segment %s at location %s'%(found_seg, last_loc)
+        #    return last_loc
+
+    row_kp = gc.x
+    col_kp = gc.y
+    
+    cv2.circle(rgb_img, (row_kp, col_kp), 5, (0, 0, 255), -1)
+    cv2.imshow(WIN_NAME, rgb_img)    
+    cv2.waitKey(100)
+
+    
+    xyz_tf[np.isnan(xyz_tf)] = -2
+    pt = xyz_tf[col_kp, row_kp]
+    xp, yp, zp = pt
+    
+    if xp == -2 or yp == -2 or zp == -2:
+        return [[-2, -2, -2], [-2, -2, -2]]
+    
+    dist_close = 0.03
+    points = []
+    r = 8
+    for i in xrange(-r,r):
+        for j in xrange(-r,r):
+            if np.linalg.norm(pt - xyz_tf[col_kp+i, row_kp+j]) < dist_close:
+                points.append(xyz_tf[col_kp+i, row_kp+j])
+    
+    
+    points = np.array(points)
+    points = points- points.sum(axis=0)/points.shape[0]
+    u,s,v = np.linalg.svd(points, full_matrices=True)
+    nm = v[2,:].T
+    if nm[2] < 0: nm = -nm
+    xn, yn, zn = nm
+    
+#     import IPython
+#     IPython.embed()
+# 
+#     from mayavi import mlab
+# 
+#     mlab.points3d(points[:,0],points[:,1],points[:,2],  color=(1,0,0), line_width=3, scale_factor=0.001)
+#     mlab.plot3d(ln[:,0], ln[:,1], ln[:,2], color=(0,1,0))
+
+    
+    print points
+    print v
+    print kp, '3d location', xp, yp, zp
+    print kp, '3d normal', xn, yn, zn
+
+    #return (x, y, z), (col_kp, row_kp)
+    return [[float(xp), float(yp), float(zp)], [float(xn), float(yn), float(zn)]]
+
 
 def find_kp_processing (kp, frame_stamp, tfm, video_dir):
     """
@@ -172,7 +260,8 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
         while True:
             key_rgb_imgs, key_depth_images = bp.get_video_frames(video_dir, [frame_stamp + time_added])
             xyz_tf = transform_pointclouds(key_depth_images[0], tfm)
-            kp_loc = tff.find_keypoint_transform_processing(kp, xyz_tf, key_rgb_imgs[0], True)
+            kp_loc = find_kp_point_normal(kp, xyz_tf, key_rgb_imgs[0])
+            #kp_loc = tff.find_keypoint_transform_processing(kp, xyz_tf, key_rgb_imgs[0], True)
 
             if kp_loc is None:
                 time_added += 1
@@ -180,9 +269,7 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
                     print 'Could not find valid %s over 15 seconds. Something seems to be wrong.'
                     return None
             else:
-                p = kp_loc[0:3,3]
-                n = kp_loc[0:3,0]
-                return [p.tolist(), n.tolist()]
+                return kp_loc
                 
     elif kp in INTERACTIVE_TRANSFORM_KEYPOINTS:
         time_added = 0
@@ -203,7 +290,8 @@ def find_kp_processing (kp, frame_stamp, tfm, video_dir):
     
     elif kp == 'none':
         return [0,0,0]
-    
+
+
 
 def find_kp_execution (kp, grabber, tfm):
     """
@@ -236,7 +324,9 @@ def find_kp_execution (kp, grabber, tfm):
     elif kp in INTERACTIVE_DIRECTION_KEYPOINTS:
         attempts = 0
         while True:
-            kp_loc = tff.find_keypoint_transform_execution(kp, grabber, tfm, True)
+            #kp_loc = tff.find_keypoint_transform_execution(kp, grabber, tfm, True)
+            xyz_tf, rgb = get_kp_clouds(grabber, 1, tfm)
+            kp_loc = find_kp_point_normal(kp, xyz_tf, rgb)
 
             if kp_loc is None:
                 attempts += 1
@@ -244,9 +334,7 @@ def find_kp_execution (kp, grabber, tfm):
                     print 'Could not find valid %s in 15 attempts. Something seems to be wrong.'%kp
                     return None
             else:
-                p = kp_loc[0:3,3]
-                n = kp_loc[0:3,0]
-                return [p.tolist(), n.tolist()]
+                return kp_loc
 
     elif kp in INTERACTIVE_TRANSFORM_KEYPOINTS:
         attempts = 0

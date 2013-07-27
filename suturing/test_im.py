@@ -46,15 +46,15 @@ menu_handler = MenuHandler()
 
 def poseCallback ( msg ):
     global server
-    marker = server.get("tfm_marker")
+    marker = server.get("pos_marker")
     print "Marker's pose:"
     print marker.pose
-    print "Msg:", msg
+    #print "Msg:", msg
 
 def nullCallback (feedback):
     pass
 
-def createPointAxes (marker, d=0.1, n=50.0):
+def createPointAxes (marker, d=1.1, n=50.0):
         
     t = 0.0
     while t < d:
@@ -74,7 +74,30 @@ def createPointAxes (marker, d=0.1, n=50.0):
         
         t += d/n
 
-def createPointLine (marker, d=0.1, n=50.0):
+def createPointAxes2 (marker, d=1.1, n=50.0):
+        
+    t = 0.0
+    while t < d:
+        p1, p2, p3 = Point(), Point(), Point()
+        c1, c2, c3 = ColorRGBA(), ColorRGBA(), ColorRGBA()
+        
+        p1.x = p1.y = p1.z = t
+        p2.x = p2.y = p2.z = t
+        p3.x = p3.y = p3.z = t
+        c1.r = c2.g = c3.b = 1
+        c1.a = c2.a = c3.a = 0.5
+        
+        marker.points.append(p1)
+        marker.colors.append(c1)
+        marker.points.append(p2)
+        marker.colors.append(c2)
+        marker.points.append(p3)
+        marker.colors.append(c3)
+        
+        t += d/n
+
+
+def createPointLine (marker, d=1.1, n=50.0):
         
     t = 0.0
     while t < d:
@@ -92,8 +115,8 @@ def createPointLine (marker, d=0.1, n=50.0):
 def makePointAxisMarker( msg ):
     marker = Marker()
 
-    marker.type = Marker.POINTS
-    marker.scale.x = msg.scale * 0.05
+    marker.type = Marker.LINE_STRIP
+    marker.scale.x = 1 #msg.scale
     marker.scale.y = msg.scale * 0.05
     marker.scale.z = msg.scale * 0.05
     marker.color.r = 0.5
@@ -101,6 +124,21 @@ def makePointAxisMarker( msg ):
     marker.color.b = 0.5
     marker.color.a = 1.0
     createPointAxes (marker, msg.scale*0.45)
+
+    return marker
+
+def makePointAxisMarker2(  ):
+    marker = Marker()
+
+    marker.type = Marker.LINE_STRIP
+    marker.scale.x = 1 #msg.scale
+    marker.scale.y = 1 * 0.05
+    marker.scale.z = 1 * 0.05
+    marker.color.r = 0.5
+    marker.color.g = 0.5
+    marker.color.b = 0.5
+    marker.color.a = 1.0
+    createPointAxes2 (marker, 1*0.45)
 
     return marker
 
@@ -154,6 +192,9 @@ def make6DofMarker( fixed, single_axis=False):
     int_marker = InteractiveMarker()
     int_marker.header.frame_id = "/base_footprint"
     int_marker.scale = 0.05
+    int_marker.pose.position.x = 0.5
+    int_marker.pose.position.y = 0
+    int_marker.pose.position.x = 1
 
     # insert a marker
     if single_axis:
@@ -250,8 +291,13 @@ def makeMoveMarker( ):
     int_marker = InteractiveMarker()
     int_marker.header.frame_id = "/base_footprint"
     int_marker.scale = 0.05
+    
+    int_marker.pose.position.x = 0.5
+    int_marker.pose.position.y = 0
+    int_marker.pose.position.z = 1
 
-    int_marker.name = "pos_marker"
+
+    
     int_marker.description = "Position finder"
 
     # insert a marker
@@ -306,9 +352,17 @@ def test_markers ():
     server = InteractiveMarkerServer("test_im")
     menu_handler.insert("Pose", callback=poseCallback)
 
-    makeMoveMarker()
+    make6DofMarker(True)
+    
+    m = makePointAxisMarker2()
+    m.header.frame_id = "base_footprint"
+    xx = rospy.Publisher("here_this", Marker)
     
     server.applyChanges()
+    import time
+    while True:
+        xx.publish(m)
+        time.sleep(0.1)
     
     rospy.spin()
 
