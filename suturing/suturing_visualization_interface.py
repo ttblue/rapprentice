@@ -210,8 +210,6 @@ def find_kp_point_normal (kp, xyz_tf, rgb_img):
 #     mlab.plot3d(ln[:,0], ln[:,1], ln[:,2], color=(0,1,0))
 
     
-    print points
-    print v
     print kp, '3d location', xp, yp, zp
     print kp, '3d normal', xn, yn, zn
 

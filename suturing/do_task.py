@@ -395,11 +395,17 @@ def addBoxToRave (env, name, pos=None, halfExtents=None):
 # Sets the rave demo arm to the initial position and grabs needle
 # Sets the rave robot arm to current position and grabs needle
 # Stores relative transform for later use
-def setup_needle_grabs (lr, old_joints, old_tfm, new_tfm):
-    
+def setup_needle_grabs (lr, joint_names, old_joints, old_tfm, new_tfm):
+    joint_names = list(joint_names)
     arm = {"l":"leftarm", "r":"rightarm"}[lr]
-    Globals.demo_robot.SetActiveDOFs(Globals.demo_robot.GetManipulator(arm).GetArmIndices())
-    Globals.demo_robot.SetActiveDOFValues(old_joints)
+    manip = Globals.demo_robot.GetManipulator(arm)
+    arm_names = [j.GetName() for j in Globals.demo_robot.GetJoints(manip.GetArmJoints())]
+    arm_inds = [joint_names.index(name) for name in arm_names]
+    
+    arm_joint_vals = np.asarray([old_joints[j] for j in arm_inds])
+        
+    Globals.demo_robot.SetActiveDOFs(manip.GetArmIndices())
+    Globals.demo_robot.SetActiveDOFValues(arm_joint_vals)
     Globals.demo_needle_tip.SetTransform(old_tfm)
     Globals.demo_robot.Grab(Globals.demo_needle_tip, Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr))
     
@@ -628,6 +634,8 @@ def main():
             if new_xyz.any() and new_xyz.shape != (4,4):
                 import visualize
                 visualize.plot_tfm(old_xyz, new_xyz, bend_c, rot_c)
+                lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
+                plotting_openrave.plot_lines(lines)    
         
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
         success = True
@@ -651,7 +659,7 @@ def main():
                     use_needle = lr
 
         if use_needle is not None:
-            setup_needle_grabs(use_needle, seg_info["joint_states"]["look_position"], demo_ntfm, ntfm)
+            setup_needle_grabs(use_needle, seg_info["joint_states"]["name"], seg_info["joint_states"]["look_position"], demo_ntfm, ntfm)
         
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
@@ -699,6 +707,9 @@ def main():
                     Globals.sponge.Enable(False)
                     old_ee_traj = setup_needle_traj (lr, ds_traj)
                     link = Globals.needle_tip.GetLinks()[0]
+                    
+                    redprint("Using needle for trajectory execution...")
+
                 else:
                     Globals.sponge.Enable(True)
                     ee_link_name = "%s_gripper_tool_frame"%lr
@@ -709,6 +720,7 @@ def main():
                         Globals.demo_robot.SetActiveDOFValues(row)
                         old_ee_traj.append(demo_link.GetTransform())
                 
+############ CAN YOU PLOT THIS OLD_EE_TRAJ?        
                 old_ee_traj = np.asarray(old_ee_traj)
                 old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
 
@@ -716,6 +728,9 @@ def main():
                     
                     manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
                     new_ee_traj = f.transform_hmats(old_ee_traj)
+                    
+#################### CAN YOU PLOT THIS NEW_EE_TRAJ?
+                    
                     handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
                     handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
                     #old_poses = [conv.hmat_to_pose(hmat) for hmat in old_ee_traj]
@@ -747,9 +762,11 @@ def main():
                 exec_traj_maybesim(bodypart2traj, speed_factor=1)
         
             # TODO measure failure condtions
+            Globals.robot.ReleaseAllGrabbed()
 
             if not success:
                 break
+            
             
         redprint("Segment %s result: %s"%(seg_name, success))
     
