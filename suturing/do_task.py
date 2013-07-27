@@ -97,11 +97,21 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     
     arm_inds  = robot.GetManipulator(manip_name).GetArmIndices()
     robot.SetActiveDOFs(arm_inds)
-    cur_dofs = robot.GetActiveDOFValues()
     
     ee_linkname = ee_link.GetName()
     
     init_traj = old_traj.copy()
+    
+    # All the joint values should be close to current one. Or else, trajopt might fail
+    if start_fixed:
+        cur_dofs = robot.GetActiveDOFValues()
+        new_traj = []
+        for dofs in init_traj:
+            for i in [4,6]:
+                dofs[i] = PR2.closer_ang(dofs[i], cur_dofs[i])
+            new_traj.append(dofs)
+        init_traj= np.asarray(new_traj)
+
     #init_traj[0] = robot.GetDOFValues(arm_inds)
 
     request = {
@@ -129,6 +139,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     }
     
     if start_fixed and len(init_traj)>0:
+        
         request["init_info"]["data"][0] = cur_dofs.tolist()
         
     poses = [openravepy.poseFromMatrix(hmat) for hmat in new_hmats]
@@ -216,8 +227,12 @@ def exec_traj_maybesim(bodypart2traj, speed_factor=0.5):
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
         #return True
     if args.execution:
-        pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=speed_factor)
-        return True
+        if args.ask:
+            if yes_or_no.yes_or_no("Continue?"):
+                pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=speed_factor)
+                return True
+        else:
+            return False
 
 
 def select_segment(demofile):
@@ -408,7 +423,7 @@ def setup_needle_grabs (lr, joint_names, old_joints, old_tfm, new_tfm):
     Globals.demo_needle_tip.SetTransform(old_tfm)
     Globals.demo_robot.Grab(Globals.demo_needle_tip, Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr))
     
-    Globals.pr2.update_rave()
+    if args.execution: Globals.pr2.update_rave()
     Globals.needle_tip.SetTransform(new_tfm)
     Globals.robot.Grab(Globals.needle_tip, Globals.robot.GetLink("%s_gripper_tool_frame"%lr))
     
@@ -537,7 +552,7 @@ def main():
                 print "Keypoints don't match."
                 exit(1)
         else:
-            Globals.pr2.update_rave()
+            if args.execution: Globals.pr2.update_rave()
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)
             new_keypoints, new_marker_poses = fk.get_keypoints_execution(grabber, seg_info['key_points'].keys(), T_w_k, use_markers)
 
@@ -628,12 +643,12 @@ def main():
         if new_xyz.any() and new_xyz.shape != (4,4):
             handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
 
-#         if args.ask:
-#             if new_xyz.any() and new_xyz.shape != (4,4):
-#                 import visualize
-#                 visualize.plot_tfm(old_xyz, new_xyz, bend_c, rot_c)
-#                 lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
-#                 plotting_openrave.plot_lines(lines)    
+        if args.ask:
+            if new_xyz.any() and new_xyz.shape != (4,4):
+                import visualize
+                visualize.plot_tfm(old_xyz, new_xyz, bend_c, rot_c)
+                lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
+                plotting_openrave.plot_lines(lines)
         
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
         success = True
@@ -655,13 +670,14 @@ def main():
                     T_g_n_demo = Globals.demo_rel_ntfm
                     demo_ntfm = T_w_g_demo.dot(T_g_n_demo)
                     use_needle = lr
-
+ 
         if use_needle is not None:
             setup_needle_grabs(use_needle, seg_info["joint_states"]["name"], seg_info["joint_states"]["look_position"], demo_ntfm, ntfm)
         
+
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
-            if args.execution=="real": Globals.pr2.update_rave()
+            if args.execution: Globals.pr2.update_rave()
 
 
             # Changing the trajectory according to the end-effector
@@ -704,12 +720,11 @@ def main():
                 if use_needle == lr:
                     Globals.sponge.Enable(False)
                     old_ee_traj = setup_needle_traj (lr, ds_traj)
-                    link = Globals.needle_tip.GetLinks()[0]
-                    
+                    link = Globals.needle_tip.GetLinks()[0]  
                     redprint("Using needle for trajectory execution...")
 
                 else:
-                    Globals.demo_robot.SetActiveDOFs(np.r_[Globals.robot.GetManipulator("leftarm").GetArmIndices(), Globals.robot.GetManipulator("rightarm").GetArmIndices()])        
+                    #Globals.demo_robot.SetActiveDOFs(np.r_[Globals.robot.GetManipulator("leftarm").GetArmIndices(), Globals.robot.GetManipulator("rightarm").GetArmIndices()])        
                     Globals.sponge.Enable(True)
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     link = Globals.robot.GetLink(ee_link_name)
@@ -726,7 +741,8 @@ def main():
                 if arm_moved(old_joint_traj):
                     
                     manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
-                    new_ee_traj = f.transform_hmats(old_ee_traj)
+                    #new_ee_traj = f.transform_hmats(old_ee_traj)
+                    new_ee_traj = old_ee_traj
                     
 #################### CAN YOU PLOT THIS NEW_EE_TRAJ?
                     
@@ -740,15 +756,23 @@ def main():
                     
 
                     if args.execution: Globals.pr2.update_rave()
+                    print manip_name
+                    print link
+                    print old_joint_traj.shape
+                    print new_ee_traj.shape
+                    raw_input()
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
-                                                      link, new_ee_traj, old_joint_traj)
-                    new_joint_traj = unwrap_joint_traj (lr, new_joint_traj)
+                                                      link, new_ee_traj, old_joint_traj, True)
+                    print new_joint_traj.shape
+                    #new_joint_traj = unwrap_joint_traj (lr, new_joint_traj)
                     # (robot, manip_name, ee_link, new_hmats, old_traj):
                     part_name = {"l":"larm", "r":"rarm"}[lr]
                     bodypart2traj[part_name] = new_joint_traj
                     
                     arms_used += lr
 
+            Globals.robot.ReleaseAllGrabbed()
+            Globals.demo_robot.ReleaseAllGrabbed()
 
             ################################    
             redprint("Executing joint trajectory for segment %s, part %i using arms '%s'"%(seg_name, i_miniseg, arms_used))
@@ -757,11 +781,11 @@ def main():
                 set_gripper_maybesim(lr, binarize_gripper(seg_info["%s_gripper_joint"%lr][i_start]))
             #trajoptpy.GetViewer(Globals.env).Idle()
 
+
             if len(bodypart2traj) > 0:
                 exec_traj_maybesim(bodypart2traj, speed_factor=1)
         
             # TODO measure failure condtions
-            Globals.robot.ReleaseAllGrabbed()
 
             if not success:
                 break
