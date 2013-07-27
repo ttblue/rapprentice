@@ -334,7 +334,6 @@ thc = threadClass()
 
 def update_markers (new_traj, old_traj):
     
-    print new_traj
     old_poses = [conv.hmat_to_pose(hmat) for hmat in old_traj]
     old_poses_s = []
     for pose in old_poses:
@@ -490,7 +489,6 @@ def main():
         thc.grabber = grabber
 
     #Globals.viewer = trajoptpy.GetViewer(Globals.env)
-    print "j"
     #####################
     
     #Globals.env.SetViewer('qtcoin')
@@ -630,12 +628,12 @@ def main():
         if new_xyz.any() and new_xyz.shape != (4,4):
             handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
 
-        if args.ask:
-            if new_xyz.any() and new_xyz.shape != (4,4):
-                import visualize
-                visualize.plot_tfm(old_xyz, new_xyz, bend_c, rot_c)
-                lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
-                plotting_openrave.plot_lines(lines)    
+#         if args.ask:
+#             if new_xyz.any() and new_xyz.shape != (4,4):
+#                 import visualize
+#                 visualize.plot_tfm(old_xyz, new_xyz, bend_c, rot_c)
+#                 lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
+#                 plotting_openrave.plot_lines(lines)    
         
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
         success = True
@@ -711,6 +709,7 @@ def main():
                     redprint("Using needle for trajectory execution...")
 
                 else:
+                    Globals.demo_robot.SetActiveDOFs(np.r_[Globals.robot.GetManipulator("leftarm").GetArmIndices(), Globals.robot.GetManipulator("rightarm").GetArmIndices()])        
                     Globals.sponge.Enable(True)
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     link = Globals.robot.GetLink(ee_link_name)
