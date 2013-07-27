@@ -392,11 +392,18 @@ def addBoxToRave (env, name, pos=None, halfExtents=None):
         env.AddKinBody(body,True)
     return body
 
-
-def setup_needle_grabs (lr, old_tfm, new_tfm):
+# Sets the rave demo arm to the initial position and grabs needle
+# Sets the rave robot arm to current position and grabs needle
+# Stores relative transform for later use
+def setup_needle_grabs (lr, old_joints, old_tfm, new_tfm):
     
+    arm = {"l":"leftarm", "r":"rightarm"}[lr]
+    Globals.demo_robot.SetActiveDOFs(Globals.demo_robot.GetManipulator(arm).GetArmIndices())
+    Globals.demo_robot.SetActiveDOFValues(old_joints)
     Globals.demo_needle_tip.SetTransform(old_tfm)
     Globals.demo_robot.Grab(Globals.demo_needle_tip, Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr))
+    
+    Globals.pr2.update_rave()
     Globals.needle_tip.SetTransform(new_tfm)
     Globals.robot.Grab(Globals.needle_tip, Globals.robot.GetLink("%s_gripper_tool_frame"%lr))
     
@@ -407,14 +414,16 @@ def setup_needle_grabs (lr, old_tfm, new_tfm):
     T_w_n_demo = old_tfm
     Globals.demo_rel_ntfm = np.linalg.inv(T_w_g_demo).dot(T_w_n_demo)
 
-
-def setup_needle_traj (lr, arm_traj):    
+# Now that the needle has been grabbed by the demo robot, find needle trajectory
+def setup_needle_traj (lr, arm_traj):
     needle_traj = []
+    arm = {"l":"leftarm", "r":"rightarm"}[lr]
+    Globals.demo_robot.SetActiveDOFs(Globals.demo_robot.GetManipulator(arm).GetArmIndices())
     for row in arm_traj:
         Globals.demo_robot.SetActiveDOFValues(row)
         needle_traj.append(Globals.demo_needle_tip.GetTransform())
     
-    return needle_traj
+    return np.asarray(needle_traj)
 
 def unwrap_joint_traj (lr, new_joint_traj):
     
@@ -625,13 +634,13 @@ def main():
         print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
 
         # Assuming only lgrab or rgrab
-        use_needle = False
-        for lr in 'lr':        
+        use_needle = None
+        for lr in 'lr':      
             if "%s_grab"%lr in seg_info['extra_information']:
                 if "needle_tip_transform" in seg_info['key_points']:
                     demo_ntfm = np.array(seg_info['key_points']['needle_tip_transform'])
                     ntfm = np.array(new_keypoints['needle_tip_transform'])
-                    use_needle = True
+                    use_needle = lr
                 elif Globals.rel_ntfm is not None:
                     T_w_g = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
                     T_g_n = Globals.rel_ntfm
@@ -639,8 +648,10 @@ def main():
                     T_w_g_demo = Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
                     T_g_n_demo = Globals.demo_rel_ntfm
                     demo_ntfm = T_w_g_demo.dot(T_g_n_demo)
-                    use_needle = True
+                    use_needle = lr
 
+        if use_needle is not None:
+            setup_needle_grabs(use_needle, seg_info["joint_states"]["look_position"], demo_ntfm, ntfm)
         
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
@@ -666,27 +677,27 @@ def main():
         
             for lr in 'lr':
                 
-                if "%s_grab"%lr in seg_info['extra_information']:
-                    if "needle_tip_transform" in seg_info['key_points']:
-                        demo_ntfm = np.array(seg_info['key_points']['needle_tip_transform'])
-                        ntfm = np.array(new_keypoints['needle_tip_transform'])
-                        use_needle = True
-                    elif Globals.rel_ntfm is not None:
-                        T_w_g = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
-                        T_g_n = Globals.rel_ntfm
-                        ntfm = T_w_g.dot(T_g_n)
-                        T_w_g_demo = Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
-                        T_g_n_demo = Globals.demo_rel_ntfm
-                        demo_ntfm = T_w_g_demo.dot(T_g_n_demo)
-                        use_needle = True
-                    else:
-                        use_needle = False
-                else:
-                    use_needle = False
+#                 if "%s_grab"%lr in seg_info['extra_information']:
+#                     if "needle_tip_transform" in seg_info['key_points']:
+#                         demo_ntfm = np.array(seg_info['key_points']['needle_tip_transform'])
+#                         ntfm = np.array(new_keypoints['needle_tip_transform'])
+#                         use_needle = True
+#                     elif Globals.rel_ntfm is not None:
+#                         T_w_g = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+#                         T_g_n = Globals.rel_ntfm
+#                         ntfm = T_w_g.dot(T_g_n)
+#                         T_w_g_demo = Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+#                         T_g_n_demo = Globals.demo_rel_ntfm
+#                         demo_ntfm = T_w_g_demo.dot(T_g_n_demo)
+#                         use_needle = True
+#                     else:
+#                         use_needle = False
+#                 else:
+#                     use_needle = False
                 
-                if use_needle:
+                if use_needle == lr:
                     Globals.sponge.Enable(False)
-                    old_ee_traj = setup_needle_traj (lr, ds_traj, demo_ntfm, ntfm)
+                    old_ee_traj = setup_needle_traj (lr, ds_traj)
                     link = Globals.needle_tip.GetLinks()[0]
                 else:
                     Globals.sponge.Enable(True)

@@ -129,11 +129,13 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
     
         start = seg_info["start"]
         stop = seg_info["stop"]
+        look = seg_info["look"]
         
-        [i_start, i_stop] = np.searchsorted(stamps, [start, stop])
+        [i_start, i_stop, i_look] = np.searchsorted(stamps, [start, stop, look])
         
         stamps_seg = stamps[i_start:i_stop+1]
         traj_seg = traj[i_start:i_stop+1]
+        look_dofs = traj[i_look]
         sample_inds = fastrapp.resample(traj_seg, np.arange(len(traj_seg)), .01, np.inf, np.inf)
         print "trajectory has length", len(sample_inds),len(traj_seg)
 
@@ -146,6 +148,7 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         group.create_group("joint_states")
         group["joint_states"]["name"] = joint_names
         group["joint_states"]["position"] = traj_ds
+        group["joint_states"]["look_position"] = look_dofs
         link_names = ["l_gripper_tool_frame","r_gripper_tool_frame","l_gripper_r_finger_tip_link","l_gripper_l_finger_tip_frame","r_gripper_r_finger_tip_link","r_gripper_l_finger_tip_frame"]
         special_joint_names = ["l_gripper_joint", "r_gripper_joint"]
         manip_names = ["leftarm", "rightarm"]
