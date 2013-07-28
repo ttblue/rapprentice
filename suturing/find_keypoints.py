@@ -133,7 +133,7 @@ def key_points_to_points (keypoints, use_ntt_kp):
     keys.sort()
     points = []
     kp_mapping = {}
-    dist = 0.02
+    dist = 0.01
     for key in keys:
         loc = np.array(keypoints[key])
         # Not warping based on this

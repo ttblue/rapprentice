@@ -1,5 +1,6 @@
 from rapprentice import plotting_openrave as po, registration, yes_or_no, PR2, berkeley_pr2
-from suturing import suturing_visualization_interface as svi, transform_finder as tff
+from suturing import suturing_visualization_interface as svi,\
+                find_keypoints as fk
 import cloudprocpy
 
 import matplotlib.pyplot
@@ -9,9 +10,9 @@ import numpy as np
 def identity (a):
     return a
 
-wt = 2
-n_wt = np.ones(13)
-n_wt[0], n_wt[3] = wt, wt 
+wt = 3
+n_wt = np.ones(12)
+n_wt[1], n_wt[5] = wt, wt
 
 
 def plot_mesh(f, mins, maxes, xres = .1, yres = .1, zres = .04):
@@ -56,7 +57,18 @@ def plot_mesh_points(f, old_xyz, new_xyz):
 
 def plot_tfm (old_xyz, new_xyz, bend_c, rot_c, wt_n=None):
     
-    f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=bend_c,rot_coef=rot_c, wt_n=wt_n)
+    f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef=bend_c, rot_coefs=rot_c, wt_n=wt_n)
+    print "nonlinear part", f.w_ng
+    print "affine part", f.lin_ag
+    print "translation part", f.trans_g
+    print "residual", f.transform_points(old_xyz) - new_xyz
+    print "max error ", np.max(np.abs(f.transform_points(old_xyz) - new_xyz))
+    plot_mesh_points(f.transform_points, old_xyz, new_xyz)
+
+
+def plot_tfm_regrot (old_xyz, new_xyz, bend_c, rot_c, scale_c):
+    
+    f = registration.fit_ThinPlateSpline_RotReg(old_xyz, new_xyz, bend_coef=bend_c, rot_coefs=rot_c, scale_coef=scale_c)
     print "nonlinear part", f.w_ng
     print "affine part", f.lin_ag
     print "translation part", f.trans_g
@@ -146,6 +158,46 @@ def store_normals_in_yaml (name):
     with open(name, 'w') as fl:    
         yaml.dump(point_sets, fl)
         
+def store_in_yaml_kp (name, kpl):
+    
+    import yaml, rospy
+    rospy.init_node("store_points", disable_signals = True)
+    
+    #subprocess.call("killall XnSensorServer", shell=True)
+
+    pr2 = PR2.PR2()
+    grabber = cloudprocpy.CloudGrabber()
+    grabber.startRGBD()
+
+    point_sets = {}
+
+    d = 0
+    while True:
+        print "Demo %i"%(d+1)
+
+        #xyz_tf, rgb = svi.get_kp_clouds(grabber, 1, T_w_k)
+        while True:
+            key_points = {}        
+            T_w_k = berkeley_pr2.get_kinect_transform(pr2.robot)
+            for kp in kpl:
+                key_points[svi.KEYPOINTS_FULL[kp]] = svi.find_kp_execution(kp, grabber, T_w_k)
+                
+            if yes_or_no.yes_or_no("Satisfied?"):
+                break
+        
+        
+        point_sets[d] = fk.key_points_to_points(key_points, True) 
+            
+        if not yes_or_no.yes_or_no("Do you want to save another situation?"):
+            break
+        
+        d += 1
+    
+    print point_sets
+    
+    with open(name, 'w') as fl:    
+        yaml.dump(point_sets, fl)
+        
         
 def update_normals (name):
     
@@ -195,6 +247,17 @@ def np_point_sets (name):
         pf[k] = np.array(pf[k])
 
     return pf
+
+def np_point_sets2 (name):
+    
+    import yaml
+    with open(name, "r") as fh: pf = yaml.load(fh)
+    
+    for k in pf:
+        pf[k] = np.array(pf[k][0])
+
+    return pf
+
 
 def set_weight(wt_):
     global wt
