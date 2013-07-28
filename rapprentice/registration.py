@@ -139,6 +139,8 @@ class ThinPlateSpline(Transformation):
     def compute_jacobian(self, x_ma):
         grad_mga = tps.tps_grad(x_ma, self.lin_ag, self.trans_g, self.w_ng, self.x_na)
         return grad_mga
+    def fitting_cost (self, y_ng, bend_coef):
+        return tps.tps_cost(self.lin_ag, self.trans_g, self.w_ng, self.x_na, y_ng, bend_coef, return_tuple=True)
         
 class Affine(Transformation):
     def __init__(self, lin_ag, trans_g):
