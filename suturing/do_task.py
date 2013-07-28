@@ -11,7 +11,7 @@ parser.add_argument("--ask", type=int, default=0)
 parser.add_argument("--fake_data_segment",type=str)
 parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx","ty","tz","rx","ry","rz"),
     default=[0,0,0,0,0,0], help="translation=(tx,ty,tz), axis-angle rotation=(rx,ry,rz)")
-
+parser.add_argument("--logging", type=int, default=0)
 parser.add_argument("--interactive",action="store_true")
 
 args = parser.parse_args()
@@ -54,6 +54,8 @@ from numpy import asarray
 import find_keypoints as fk, suturing_visualization_interface as svi
 
 subprocess.call("killall XnSensorServer", shell=True)
+
+filename = None
 
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
@@ -109,6 +111,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
         for dofs in init_traj:
             for i in [4,6]:
                 dofs[i] = PR2.closer_ang(dofs[i], cur_dofs[i])
+            cur_dofs = dofs
             new_traj.append(dofs)
         init_traj= np.asarray(new_traj)
 
@@ -139,7 +142,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     }
     
     if start_fixed and len(init_traj)>0:
-        
+        cur_dofs = robot.GetActiveDOFValues()
         request["init_info"]["data"][0] = cur_dofs.tolist()
         
     poses = [openravepy.poseFromMatrix(hmat) for hmat in new_hmats]
@@ -162,7 +165,14 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     s = json.dumps(request)
     prob = trajoptpy.ConstructProblem(s, Globals.env) # create object that stores optimization problem
     result = trajoptpy.OptimizeProblem(prob) # do optimization
-    traj = result.GetTraj()    
+    
+    print result
+    raw_input("what")
+    
+    traj = result.GetTraj()
+    costs = result.GetCosts()
+    constraints = result.GetConstraints()
+        
         
     saver = openravepy.RobotStateSaver(robot)
     pos_errs = []
@@ -177,8 +187,8 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
         
     print "planned trajectory for %s. max position error: %.3f. all position errors: %s"%(manip_name, pos_errs.max(), pos_errs)
             
-    return traj
-    
+    return traj, costs, constraints, pos_errs.max()
+
     
 def set_gripper_maybesim(lr, value):
     if args.execution:
@@ -227,13 +237,8 @@ def exec_traj_maybesim(bodypart2traj, speed_factor=0.5):
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
         #return True
     if args.execution:
-        if args.ask:
-            if yes_or_no.yes_or_no("Continue?"):
-                pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=speed_factor)
-                return True
-        else:
-            return False
-
+        pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj, speed_factor=speed_factor)
+        return True
 
 def select_segment(demofile):
     seg_names = demofile.keys()
@@ -430,7 +435,7 @@ def setup_needle_grabs (lr, joint_names, old_joints, old_tfm, new_tfm):
     T_w_g = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
     T_w_n = new_tfm
     Globals.rel_ntfm = np.linalg.inv(T_w_g).dot(T_w_n)
-    T_w_g_demo = Globals.robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
+    T_w_g_demo = Globals.demo_robot.GetLink("%s_gripper_tool_frame"%lr).GetTransform()
     T_w_n_demo = old_tfm
     Globals.demo_rel_ntfm = np.linalg.inv(T_w_g_demo).dot(T_w_n_demo)
 
@@ -453,6 +458,7 @@ def unwrap_joint_traj (lr, new_joint_traj):
     for dofs in new_joint_traj:
         for i in [4,6]:
             dofs[i] = PR2.closer_ang(dofs[i], current_dofs[i])
+        current_dofs = dofs
         new_traj.append(dofs)
     new_traj = np.asarray(new_traj)
     return new_traj
@@ -474,6 +480,15 @@ def main():
     
     trajoptpy.SetInteractive(args.interactive)
     rospy.init_node("exec_task",disable_signals=True)
+    
+    global filename
+    if args.logging:
+        name = raw_input ('Enter identifier of this experiment: ')
+        import os.path as osp
+        filename = osp.join('/home/sibi/sandbox/rapprentice/experiments/', name)
+        if not osp.exists(filename):
+            with open(filename,'w') as fh:
+                fh.write("Experiment: %s\nInfo: \n"%name)
     
     thc.start()
     
@@ -518,6 +533,10 @@ def main():
             seg_name = args.fake_data_segment
         else:
             seg_name = find_closest(demofile)
+        
+        if args.logging:
+            with open(filename,'a') as fh:
+                fh.write("- seg_name: %s\n"%name)
         
         seg_info = demofile[seg_name]
         # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
@@ -601,34 +620,53 @@ def main():
             f = registration.ThinPlateSpline()
             rel_tfm = new_xyz.dot(np.linalg.inv(old_xyz))
             f.init_rigid_tfm(rel_tfm)
+            max_error = None
         elif len(new_xyz) > 0:
             #f.fit(demopoints_m3, newpoints_m3, 10,10)
             # TODO - check if this regularization on bending is correct
-            if "right_hole_normal" in new_keypoints or "left_hole_normal" in new_keypoints:
-                bend_c = 0.05
-                rot_c = [1e-5,1e-5,0.1]
-                wt = 5
-                wt_n = np.ones(len(old_xyz))
-                if kp_mapping.get("right_hole_normal"):
-                    wt_n[kp_mapping["right_hole_normal"][0]] = wt
-                if kp_mapping.get("left_hole_normal"):
-                    wt_n[kp_mapping["left_hole_normal"][0]] = wt
-                print "Found hole normals"
-            else:
-                bend_c = 0.05
-                rot_c = 1e-5#[0,0,1e-5]
-                wt_n = None
-            f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef = bend_c,rot_coef = rot_c)
+            #if "right_hole_normal" in new_keypoints or "left_hole_normal" in new_keypoints:
+            #    bend_c = 0.1
+            #    rot_c = [1e-5,1e-5,0.1]
+            wt = 5
+            wt_n = np.ones(len(old_xyz))
+            if kp_mapping.get("right_hole_normal"):
+                wt_n[kp_mapping["right_hole_normal"][0]] = wt
+            if kp_mapping.get("left_hole_normal"):
+                wt_n[kp_mapping["left_hole_normal"][0]] = wt
+            print "Found hole normals"
+            #else:
+            #    bend_c = 0.1
+            #    rot_c = 1e-5#[0,0,1e-5]
+            #    wt_n = None
+            # f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef = bend_c,rot_coef = rot_c)
+            bend_c = 0.05
+            rot_c = [1e-3, 1e-3, 1e-3]
+            scale_c = 5
+            f = registration.fit_ThinPlateSpline_RotReg(old_xyz, new_xyz, bend_c, rot_c, scale_c)
             np.set_printoptions(precision=3)
+            max_error = np.max(np.abs(f.transform_points(old_xyz) - new_xyz))
             print "nonlinear part", f.w_ng
             print "affine part", f.lin_ag
             print "translation part", f.trans_g
             print "residual", f.transform_points(old_xyz) - new_xyz
-            print "max error ", np.max(np.abs(f.transform_points(old_xyz) - new_xyz))
+            print "max error ", max_error
         else:
             f = registration.ThinPlateSpline()
             bend_c = 0
             rot_c = 0
+            scale_c = 0
+            max_error = None
+            
+        if args.logging:
+            res_cost, bend_cost, tot_cost = f.fitting_cost(new_xyz, bend_c)
+            with open(filename,'w') as fh:
+                fh.write("  tps_info: \n")
+                fh.write("    res_cost: %f\n    bend_cost: %f\n    tot_cost: %f\n"%(res_cost, bend_cost, tot_cost))
+                if max_error is not None:
+                    fh.write("    max_tps_error: %f\n"%max_error)
+                else:
+                    fh.write("    max_tps_error: -1\n")
+            
 #         else:
 #             f = registration.ThinPlateSpline()            
 #             bend_c = 0
@@ -646,9 +684,11 @@ def main():
         if args.ask:
             if new_xyz.any() and new_xyz.shape != (4,4):
                 import visualize
-                visualize.plot_tfm(old_xyz, new_xyz, bend_c, rot_c)
+                visualize.plot_mesh_points(f.transform_points, old_xyz, new_xyz)
                 lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
                 plotting_openrave.plot_lines(lines)
+            if not yes_or_no.yes_or_no("Continue?"):
+                continue
         
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
         success = True
@@ -675,10 +715,11 @@ def main():
             setup_needle_grabs(use_needle, seg_info["joint_states"]["name"], seg_info["joint_states"]["look_position"], demo_ntfm, ntfm)
         
 
+        if args.logging:
+            
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
             if args.execution: Globals.pr2.update_rave()
-
 
             # Changing the trajectory according to the end-effector
             full_traj = np.c_[seg_info["leftarm"][i_start:i_end+1], seg_info["rightarm"][i_start:i_end+1]]
@@ -719,21 +760,26 @@ def main():
                 
                 if use_needle == lr:
                     Globals.sponge.Enable(False)
-                    old_ee_traj = setup_needle_traj (lr, ds_traj)
+                    arm_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
+                    old_ee_traj = setup_needle_traj (lr, arm_traj)
                     link = Globals.needle_tip.GetLinks()[0]  
                     redprint("Using needle for trajectory execution...")
 
                 else:
-                    #Globals.demo_robot.SetActiveDOFs(np.r_[Globals.robot.GetManipulator("leftarm").GetArmIndices(), Globals.robot.GetManipulator("rightarm").GetArmIndices()])        
+                    arm = {"l":"leftarm", "r":"rightarm"}[lr]
+                    Globals.demo_robot.SetActiveDOFs(Globals.robot.GetManipulator(arm).GetArmIndices())
                     Globals.sponge.Enable(True)
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     link = Globals.robot.GetLink(ee_link_name)
+                    #old_ee_traj = np.asarray(seg_info[ee_link_name]["hmat"])
                     demo_link = Globals.demo_robot.GetLink(ee_link_name)
                     old_ee_traj = []
-                    for row in ds_traj:
+                    arm_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
+                    for row in arm_traj:
                         Globals.demo_robot.SetActiveDOFValues(row)
                         old_ee_traj.append(demo_link.GetTransform())
-                
+                        
+
 ############ CAN YOU PLOT THIS OLD_EE_TRAJ?        
                 old_ee_traj = np.asarray(old_ee_traj)
                 old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
@@ -741,8 +787,8 @@ def main():
                 if arm_moved(old_joint_traj):
                     
                     manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
-                    #new_ee_traj = f.transform_hmats(old_ee_traj)
-                    new_ee_traj = old_ee_traj
+                    new_ee_traj = f.transform_hmats(old_ee_traj)
+                    #new_ee_traj = old_ee_traj
                     
 #################### CAN YOU PLOT THIS NEW_EE_TRAJ?
                     
@@ -756,23 +802,14 @@ def main():
                     
 
                     if args.execution: Globals.pr2.update_rave()
-                    print manip_name
-                    print link
-                    print old_joint_traj.shape
-                    print new_ee_traj.shape
-                    raw_input()
-                    new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
+                    new_joint_traj, costs, cnts,  = plan_follow_traj(Globals.robot, manip_name,
                                                       link, new_ee_traj, old_joint_traj, True)
-                    print new_joint_traj.shape
-                    #new_joint_traj = unwrap_joint_traj (lr, new_joint_traj)
+                    new_joint_traj = unwrap_joint_traj (lr, new_joint_traj)
                     # (robot, manip_name, ee_link, new_hmats, old_traj):
                     part_name = {"l":"larm", "r":"rarm"}[lr]
                     bodypart2traj[part_name] = new_joint_traj
                     
                     arms_used += lr
-
-            Globals.robot.ReleaseAllGrabbed()
-            Globals.demo_robot.ReleaseAllGrabbed()
 
             ################################    
             redprint("Executing joint trajectory for segment %s, part %i using arms '%s'"%(seg_name, i_miniseg, arms_used))
@@ -784,13 +821,15 @@ def main():
 
             if len(bodypart2traj) > 0:
                 exec_traj_maybesim(bodypart2traj, speed_factor=1)
-        
-            # TODO measure failure condtions
 
+            # TODO measure failure condtions
             if not success:
                 break
             
-            
+
+        Globals.robot.ReleaseAllGrabbed()
+        Globals.demo_robot.ReleaseAllGrabbed()
+    
         redprint("Segment %s result: %s"%(seg_name, success))
     
         if args.fake_data_segment: break
