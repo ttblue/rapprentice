@@ -258,6 +258,15 @@ def np_point_sets2 (name):
 
     return pf
 
+def np_ps (name):
+    import yaml
+    with open(name,'r') as fh: pf = yaml.load(fh)
+
+    for k in pf:
+	pf[k] = np.array(pf[k][0])
+	pf[k] = pf[k][[1,2,3,5,6,7]]
+
+    return pf
 
 def set_weight(wt_):
     global wt

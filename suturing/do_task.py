@@ -166,9 +166,6 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj, start_fixe
     prob = trajoptpy.ConstructProblem(s, Globals.env) # create object that stores optimization problem
     result = trajoptpy.OptimizeProblem(prob) # do optimization
     
-    print result
-    raw_input("what")
-    
     traj = result.GetTraj()
     costs = result.GetCosts()
     constraints = result.GetConstraints()
@@ -483,12 +480,13 @@ def main():
     
     global filename
     if args.logging:
-        name = raw_input ('Enter identifier of this experiment: ')
+        name = raw_input ('Enter identifier of this experiment (without spaces): ')
+        name = name + '.yaml'
         import os.path as osp
         filename = osp.join('/home/sibi/sandbox/rapprentice/experiments/', name)
         if not osp.exists(filename):
             with open(filename,'w') as fh:
-                fh.write("Experiment: %s\nInfo: \n"%name)
+                fh.write("experiment: %s\ninfo: \n"%name)
     
     thc.start()
     
@@ -533,10 +531,6 @@ def main():
             seg_name = args.fake_data_segment
         else:
             seg_name = find_closest(demofile)
-        
-        if args.logging:
-            with open(filename,'a') as fh:
-                fh.write("- seg_name: %s\n"%name)
         
         seg_info = demofile[seg_name]
         # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
@@ -620,6 +614,9 @@ def main():
             f = registration.ThinPlateSpline()
             rel_tfm = new_xyz.dot(np.linalg.inv(old_xyz))
             f.init_rigid_tfm(rel_tfm)
+            bend_c = 0
+            rot_c = 0
+            scale_c = 0
             max_error = None
         elif len(new_xyz) > 0:
             #f.fit(demopoints_m3, newpoints_m3, 10,10)
@@ -641,7 +638,7 @@ def main():
             # f = registration.fit_ThinPlateSpline(old_xyz, new_xyz, bend_coef = bend_c,rot_coef = rot_c)
             bend_c = 0.05
             rot_c = [1e-3, 1e-3, 1e-3]
-            scale_c = 5
+            scale_c = 0.1
             f = registration.fit_ThinPlateSpline_RotReg(old_xyz, new_xyz, bend_c, rot_c, scale_c)
             np.set_printoptions(precision=3)
             max_error = np.max(np.abs(f.transform_points(old_xyz) - new_xyz))
@@ -656,17 +653,7 @@ def main():
             rot_c = 0
             scale_c = 0
             max_error = None
-            
-        if args.logging:
-            res_cost, bend_cost, tot_cost = f.fitting_cost(new_xyz, bend_c)
-            with open(filename,'w') as fh:
-                fh.write("  tps_info: \n")
-                fh.write("    res_cost: %f\n    bend_cost: %f\n    tot_cost: %f\n"%(res_cost, bend_cost, tot_cost))
-                if max_error is not None:
-                    fh.write("    max_tps_error: %f\n"%max_error)
-                else:
-                    fh.write("    max_tps_error: -1\n")
-            
+                        
 #         else:
 #             f = registration.ThinPlateSpline()            
 #             bend_c = 0
@@ -685,8 +672,8 @@ def main():
             if new_xyz.any() and new_xyz.shape != (4,4):
                 import visualize
                 visualize.plot_mesh_points(f.transform_points, old_xyz, new_xyz)
-                lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
-                plotting_openrave.plot_lines(lines)
+                #lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
+                #plotting_openrave.plot_lines(lines)
             if not yes_or_no.yes_or_no("Continue?"):
                 continue
         
@@ -716,7 +703,19 @@ def main():
         
 
         if args.logging:
-            
+            with open(filename,'a') as fh:
+                fh.write("- seg_name: %s\n"%seg_name)
+                fh.write("  tps_info: \n")
+                if max_error is not None:
+                    res_cost, bend_cost, tot_cost = f.fitting_cost(new_xyz, bend_c)
+                    fh.write("    res_cost: %f\n    bend_cost: %f\n    tot_cost: %f\n"%(res_cost, bend_cost, tot_cost))
+                    fh.write("    max_tps_error: %f\n"%max_error)
+                else:
+                    fh.write("    res_cost: -1\n    bend_cost: -1\n    tot_cost: -1\n    max_tps_error: -1\n")
+                
+                fh.write("  trajopt_info: \n")
+
+
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
             if args.execution: Globals.pr2.update_rave()
@@ -735,8 +734,11 @@ def main():
             redprint("Generating joint trajectory for segment %s, part %i"%(seg_name, i_miniseg))
 
             bodypart2traj = {}
-            
             arms_used = ""
+            
+            if args.logging:
+                with open(filename, 'a') as fh:
+                    fh.write("    mini_seg%i: \n"%i_miniseg)
         
             for lr in 'lr':
                 
@@ -768,7 +770,10 @@ def main():
                 else:
                     arm = {"l":"leftarm", "r":"rightarm"}[lr]
                     Globals.demo_robot.SetActiveDOFs(Globals.robot.GetManipulator(arm).GetArmIndices())
-                    Globals.sponge.Enable(True)
+                    if seg_name == "8_knot_tie_next0_seg00":
+                        Globals.sponge.Enable(False)
+                    else:
+                        Globals.sponge.Enable(True)
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     link = Globals.robot.GetLink(ee_link_name)
                     #old_ee_traj = np.asarray(seg_info[ee_link_name]["hmat"])
@@ -802,7 +807,7 @@ def main():
                     
 
                     if args.execution: Globals.pr2.update_rave()
-                    new_joint_traj, costs, cnts,  = plan_follow_traj(Globals.robot, manip_name,
+                    new_joint_traj, costs, cnts, pos_err = plan_follow_traj(Globals.robot, manip_name,
                                                       link, new_ee_traj, old_joint_traj, True)
                     new_joint_traj = unwrap_joint_traj (lr, new_joint_traj)
                     # (robot, manip_name, ee_link, new_hmats, old_traj):
@@ -810,14 +815,28 @@ def main():
                     bodypart2traj[part_name] = new_joint_traj
                     
                     arms_used += lr
+                    
+                    if args.logging:
+                        with open(filename, 'a') as fh:
+                            fh.write("    - %s: \n"%lr)
+                            fh.write("        costs: \n")
+                            tot_cost = 0
+                            for c_name, c_val in costs:
+                                fh.write("        - %s: %f\n"%(c_name, c_val))
+                                tot_cost += c_val
+                            fh.write("        - tot_cost: %f\n"%tot_cost)
+                            fh.write("        constraints: \n")
+                            for cnt in cnts:
+                                fh.write("        - %s\n"%str(cnt))
+                            fh.write("        max_pos_error: %f\n"%pos_err)
+                        
 
             ################################    
             redprint("Executing joint trajectory for segment %s, part %i using arms '%s'"%(seg_name, i_miniseg, arms_used))
 
             for lr in 'lr':
                 set_gripper_maybesim(lr, binarize_gripper(seg_info["%s_gripper_joint"%lr][i_start]))
-            #trajoptpy.GetViewer(Globals.env).Idle()
-
+                #trajoptpy.GetViewer(Globals.env).Idle()
 
             if len(bodypart2traj) > 0:
                 exec_traj_maybesim(bodypart2traj, speed_factor=1)

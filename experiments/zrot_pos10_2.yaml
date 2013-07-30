@@ -1,0 +1,640 @@
+experiment: zrot_pos10_2.yaml
+info: 
+- seg_name: 0_pickup_needle0_seg00
+  tps_info: 
+    res_cost: 0.000013
+    bend_cost: 0.000003
+    tot_cost: 0.000016
+    max_tps_error: 0.001598
+  trajopt_info: 
+    mini_seg0: 
+    - l: 
+        costs: 
+        - joint_vel: 0.821604
+        - collision_0: 0.000000
+        - collision_1: 0.000000
+        - collision_2: 0.000000
+        - collision_3: 0.000000
+        - collision_4: 0.000000
+        - collision_5: 0.000000
+        - collision_6: 0.000000
+        - collision_7: 0.000000
+        - collision_8: 0.000000
+        - collision_9: 0.000000
+        - collision_10: 0.000000
+        - collision_11: 0.000000
+        - collision_12: 0.000000
+        - collision_13: 0.000000
+        - collision_14: 0.000000
+        - collision_15: 0.000000
+        - collision_16: 0.000000
+        - collision_17: 0.000000
+        - collision_18: 0.000000
+        - collision_19: 0.000000
+        - collision_20: 0.000000
+        - collision_21: 0.000000
+        - collision_22: 0.000000
+        - collision_23: 0.000000
+        - collision_24: 0.000000
+        - collision_25: 0.000000
+        - collision_26: 0.000000
+        - collision_27: 0.000000
+        - collision_28: 0.000000
+        - collision_29: 0.000000
+        - collision_30: 0.000000
+        - collision_31: 0.000000
+        - collision_32: 0.000000
+        - collision_33: 0.000000
+        - collision_34: 0.000000
+        - collision_35: 0.000000
+        - collision_36: 0.000000
+        - collision_37: 0.000000
+        - collision_38: 0.000000
+        - pose: 16.599240
+        - pose: 0.000075
+        - pose: 0.000069
+        - pose: 0.000066
+        - pose: 0.000068
+        - pose: 0.000072
+        - pose: 0.000077
+        - pose: 0.000083
+        - pose: 0.000088
+        - pose: 0.000094
+        - pose: 0.000092
+        - pose: 0.000079
+        - pose: 0.000073
+        - pose: 0.000086
+        - pose: 0.000101
+        - pose: 0.000096
+        - pose: 0.000091
+        - pose: 0.000083
+        - pose: 0.000080
+        - pose: 0.000067
+        - pose: 0.000053
+        - pose: 0.000040
+        - pose: 0.000028
+        - pose: 0.000019
+        - pose: 0.000011
+        - pose: 0.000005
+        - pose: 0.000002
+        - pose: 0.000000
+        - pose: 0.000001
+        - pose: 0.000003
+        - pose: 0.000006
+        - pose: 0.000012
+        - pose: 0.000022
+        - pose: 0.000034
+        - pose: 0.000049
+        - pose: 0.000047
+        - pose: 0.000048
+        - pose: 0.000042
+        - pose: 0.000039
+        - pose: 0.000038
+        - tot_cost: 17.422884
+        constraints: 
+        max_pos_error: 0.000001
+    mini_seg1: 
+    - l: 
+        costs: 
+        - joint_vel: 0.295753
+        - collision_0: 0.000000
+        - collision_1: 0.000000
+        - collision_2: 0.000000
+        - collision_3: 0.000000
+        - collision_4: 0.000000
+        - collision_5: 0.000000
+        - collision_6: 0.000000
+        - collision_7: 0.000000
+        - collision_8: 0.000000
+        - collision_9: 0.000000
+        - collision_10: 0.000000
+        - collision_11: 0.000000
+        - collision_12: 0.000000
+        - collision_13: 0.000000
+        - collision_14: 0.000000
+        - collision_15: 0.000000
+        - collision_16: 0.000000
+        - collision_17: 0.000000
+        - collision_18: 0.000000
+        - collision_19: 0.000000
+        - collision_20: 0.000000
+        - collision_21: 0.000000
+        - collision_22: 0.000000
+        - collision_23: 0.000000
+        - collision_24: 0.000000
+        - collision_25: 0.000000
+        - collision_26: 0.000000
+        - collision_27: 0.000000
+        - collision_28: 0.000000
+        - collision_29: 0.000000
+        - collision_30: 0.000000
+        - collision_31: 0.000000
+        - collision_32: 0.000000
+        - collision_33: 0.000000
+        - collision_34: 0.000000
+        - collision_35: 0.000000
+        - collision_36: 0.000000
+        - collision_37: 0.000000
+        - collision_38: 0.000000
+        - collision_39: 0.000000
+        - collision_40: 0.000000
+        - collision_41: 0.000000
+        - collision_42: 0.000000
+        - collision_43: 0.000000
+        - collision_44: 0.000000
+        - collision_45: 0.000000
+        - collision_46: 0.000000
+        - collision_47: 0.000000
+        - collision_48: 0.000000
+        - collision_49: 0.000000
+        - collision_50: 0.000000
+        - collision_51: 0.000000
+        - collision_52: 0.000000
+        - collision_53: 0.000000
+        - collision_54: 0.000000
+        - collision_55: 0.000000
+        - collision_56: 0.000000
+        - collision_57: 0.000000
+        - collision_58: 0.000000
+        - collision_59: 0.000000
+        - pose: 0.571757
+        - pose: 0.000003
+        - pose: 0.000010
+        - pose: 0.000021
+        - pose: 0.000035
+        - pose: 0.000045
+        - pose: 0.000031
+        - pose: 0.000021
+        - pose: 0.000013
+        - pose: 0.000008
+        - pose: 0.000005
+        - pose: 0.000003
+        - pose: 0.000001
+        - pose: 0.000000
+        - pose: 0.000001
+        - pose: 0.000004
+        - pose: 0.000009
+        - pose: 0.000017
+        - pose: 0.000027
+        - pose: 0.000043
+        - pose: 0.000042
+        - pose: 0.000041
+        - pose: 0.000041
+        - pose: 0.000037
+        - pose: 0.000035
+        - pose: 0.000034
+        - pose: 0.000033
+        - pose: 0.000032
+        - pose: 0.000032
+        - pose: 0.000031
+        - pose: 0.000031
+        - pose: 0.000032
+        - pose: 0.000032
+        - pose: 0.000032
+        - pose: 0.000033
+        - pose: 0.000033
+        - pose: 0.000033
+        - pose: 0.000033
+        - pose: 0.000033
+        - pose: 0.000033
+        - pose: 0.000033
+        - pose: 0.000034
+        - pose: 0.000034
+        - pose: 0.000034
+        - pose: 0.000034
+        - pose: 0.000035
+        - pose: 0.000040
+        - pose: 0.000040
+        - pose: 0.000041
+        - pose: 0.000040
+        - pose: 0.000038
+        - pose: 0.000038
+        - pose: 0.000038
+        - pose: 0.000038
+        - pose: 0.000039
+        - pose: 0.000040
+        - pose: 0.000042
+        - pose: 0.000043
+        - pose: 0.000045
+        - pose: 0.000046
+        - pose: 0.000053
+        - tot_cost: 0.869317
+        constraints: 
+        max_pos_error: 0.000001
+- seg_name: 1_pickup_flap_r0_seg00
+  tps_info: 
+    res_cost: 0.000115
+    bend_cost: 0.000004
+    tot_cost: 0.000119
+    max_tps_error: 0.006154
+  trajopt_info: 
+    mini_seg0: 
+    - r: 
+        costs: 
+        - joint_vel: 0.375366
+        - collision_0: 0.000000
+        - collision_1: 0.000000
+        - collision_2: 0.000000
+        - collision_3: 0.000000
+        - collision_4: 0.000000
+        - collision_5: 0.000000
+        - collision_6: 0.000000
+        - collision_7: 0.000000
+        - collision_8: 0.000000
+        - collision_9: 0.000000
+        - collision_10: 0.000000
+        - collision_11: 0.000000
+        - collision_12: 0.000000
+        - collision_13: 0.000000
+        - collision_14: 0.000000
+        - collision_15: 0.000000
+        - collision_16: 0.000000
+        - collision_17: 0.000000
+        - collision_18: 0.000000
+        - collision_19: 0.000000
+        - collision_20: 0.000000
+        - collision_21: 0.000000
+        - collision_22: 0.000000
+        - collision_23: 0.000000
+        - collision_24: 0.000000
+        - collision_25: 0.000000
+        - collision_26: 0.000000
+        - collision_27: 0.000000
+        - collision_28: 0.000000
+        - collision_29: 0.000000
+        - collision_30: 0.000000
+        - collision_31: 0.110429
+        - collision_32: 0.233799
+        - collision_33: 0.344833
+        - collision_34: 0.345229
+        - collision_35: 0.367074
+        - collision_36: 0.367249
+        - collision_37: 0.353498
+        - collision_38: 0.411933
+        - collision_39: 0.420121
+        - collision_40: 0.412567
+        - collision_41: 0.420615
+        - collision_42: 0.453125
+        - collision_43: 0.454999
+        - collision_44: 0.455238
+        - collision_45: 0.451389
+        - collision_46: 0.432637
+        - collision_47: 0.322468
+        - collision_48: 0.114849
+        - collision_49: 0.115218
+        - collision_50: 0.118380
+        - collision_51: 0.118380
+        - collision_52: 0.114385
+        - collision_53: 0.124259
+        - collision_54: 0.202097
+        - pose: 4.013581
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000009
+        - pose: 0.000011
+        - pose: 0.000012
+        - pose: 0.000014
+        - pose: 0.000011
+        - pose: 0.000145
+        - pose: 0.000132
+        - pose: 0.000098
+        - pose: 0.000004
+        - pose: 0.000099
+        - pose: 0.000006
+        - pose: 0.000052
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000138
+        - pose: 0.000002
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000001
+        - pose: 0.000003
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.134997
+        - pose: 0.155717
+        - pose: 0.029038
+        - pose: 0.000033
+        - pose: 0.000001
+        - pose: 0.094299
+        - pose: 0.094636
+        - pose: 0.024573
+        - pose: 0.000040
+        - pose: 0.008293
+        - pose: 0.063368
+        - pose: 0.139334
+        - pose: 0.197787
+        - pose: 0.278778
+        - pose: 0.021439
+        - pose: 0.062047
+        - pose: 0.000141
+        - pose: 0.000074
+        - pose: 0.045633
+        - pose: 0.000027
+        - pose: 0.000078
+        - pose: 0.148127
+        - pose: 0.000008
+        - tot_cost: 13.152923
+        constraints: 
+        max_pos_error: 0.013932
+    mini_seg1: 
+    - r: 
+        costs: 
+        - joint_vel: 0.081811
+        - collision_0: 0.111300
+        - collision_1: 0.111300
+        - collision_2: 0.042022
+        - collision_3: 0.000000
+        - collision_4: 0.000000
+        - collision_5: 0.000000
+        - pose: 1.482464
+        - pose: 0.000018
+        - pose: 0.000016
+        - pose: 0.000015
+        - pose: 0.000015
+        - pose: 0.000014
+        - pose: 0.000014
+        - tot_cost: 1.828990
+        constraints: 
+        max_pos_error: 0.000000
+- seg_name: 2_show_needle0_seg00
+  tps_info: 
+    res_cost: -1
+    bend_cost: -1
+    tot_cost: -1
+    max_tps_error: -1
+  trajopt_info: 
+    mini_seg0: 
+    - l: 
+        costs: 
+        - joint_vel: 5.393215
+        - collision_0: 0.000000
+        - collision_1: 0.000000
+        - collision_2: 0.000000
+        - collision_3: 0.000000
+        - collision_4: 0.000000
+        - collision_5: 0.000000
+        - collision_6: 0.000000
+        - collision_7: 0.000000
+        - collision_8: 0.000000
+        - collision_9: 0.000000
+        - collision_10: 0.000000
+        - pose: 29.747984
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - pose: 0.000000
+        - tot_cost: 35.141200
+        constraints: 
+        max_pos_error: 0.000000
+- seg_name: 2_pierce0_seg01
+  tps_info: 
+    res_cost: 0.000154
+    bend_cost: 0.000004
+    tot_cost: 0.000158
+    max_tps_error: 0.006748
+  trajopt_info: 
+    mini_seg0: 
+    - l: 
+        costs: 
+        - joint_vel: 1.644599
+        - collision_0: 0.434069
+        - collision_1: 0.432749
+        - collision_2: 0.432373
+        - collision_3: 0.433514
+        - collision_4: 0.433148
+        - collision_5: 0.433555
+        - collision_6: 0.432471
+        - collision_7: 0.432099
+        - collision_8: 0.430195
+        - collision_9: 0.432972
+        - collision_10: 0.433904
+        - collision_11: 0.433086
+        - collision_12: 0.432401
+        - collision_13: 0.433459
+        - collision_14: 0.433149
+        - collision_15: 0.428912
+        - collision_16: 0.431246
+        - collision_17: 0.431492
+        - collision_18: 0.430994
+        - collision_19: 0.433409
+        - collision_20: 0.433231
+        - collision_21: 0.431525
+        - collision_22: 0.430377
+        - collision_23: 0.431698
+        - collision_24: 0.431897
+        - collision_25: 0.432764
+        - collision_26: 0.431937
+        - collision_27: 0.431968
+        - collision_28: 0.428918
+        - collision_29: 0.429011
+        - collision_30: 0.430551
+        - collision_31: 0.431393
+        - collision_32: 0.430267
+        - collision_33: 0.431660
+        - collision_34: 0.433320
+        - collision_35: 0.431536
+        - collision_36: 0.433415
+        - collision_37: 0.538218
+        - collision_38: 0.653292
+        - collision_39: 0.729167
+        - collision_40: 0.777572
+        - collision_41: 0.810158
+        - collision_42: 0.833355
+        - collision_43: 0.829949
+        - collision_44: 0.815578
+        - collision_45: 0.812000
+        - collision_46: 0.818664
+        - collision_47: 0.833488
+        - collision_48: 0.822565
+        - collision_49: 0.799025
+        - collision_50: 0.767271
+        - collision_51: 0.782313
+        - collision_52: 0.784842
+        - collision_53: 0.709640
+        - collision_54: 0.687508
+        - collision_55: 0.687688
+        - collision_56: 0.745550
+        - collision_57: 0.747070
+        - collision_58: 0.717285
+        - collision_59: 0.690957
+        - collision_60: 0.669273
+        - pose: 12.722394
+        - pose: 0.000003
+        - pose: 0.000005
+        - pose: 0.000008
+        - pose: 0.000011
+        - pose: 0.000016
+        - pose: 0.000020
+        - pose: 0.000025
+        - pose: 0.000030
+        - pose: 0.000034
+        - pose: 0.000037
+        - pose: 0.000045
+        - pose: 0.000054
+        - pose: 0.000061
+        - pose: 0.000068
+        - pose: 0.000076
+        - pose: 0.000078
+        - pose: 0.000079
+        - pose: 0.000081
+        - pose: 0.000083
+        - pose: 0.000097
+        - pose: 0.000113
+        - pose: 0.000118
+        - pose: 0.000123
+        - pose: 0.000130
+        - pose: 0.000136
+        - pose: 0.000143
+        - pose: 0.000150
+        - pose: 0.000173
+        - pose: 0.000170
+        - pose: 0.000164
+        - pose: 0.000154
+        - pose: 0.000144
+        - pose: 0.000137
+        - pose: 0.000135
+        - pose: 0.000150
+        - pose: 0.000152
+        - pose: 0.000141
+        - pose: 0.000126
+        - pose: 0.000106
+        - pose: 0.000101
+        - pose: 0.000095
+        - pose: 0.000088
+        - pose: 0.000080
+        - pose: 0.000073
+        - pose: 0.000064
+        - pose: 0.000057
+        - pose: 0.000051
+        - pose: 0.000045
+        - pose: 0.000040
+        - pose: 0.000037
+        - pose: 0.000034
+        - pose: 0.000033
+        - pose: 0.000036
+        - pose: 0.000037
+        - pose: 0.000037
+        - pose: 0.000037
+        - pose: 0.000037
+        - pose: 0.000037
+        - pose: 0.000037
+        - pose: 0.000037
+        - pose: 0.000037
+        - tot_cost: 48.418793
+        constraints: 
+        max_pos_error: 0.000002
+- seg_name: 2_pierce0_seg02
+  tps_info: 
+    res_cost: 0.000140
+    bend_cost: 0.000000
+    tot_cost: 0.000140
+    max_tps_error: 0.006253
+  trajopt_info: 
+    mini_seg0: 
+    mini_seg1: 
+    - r: 
+        costs: 
+        - joint_vel: 0.353492
+        - collision_0: 0.000000
+        - collision_1: 0.000000
+        - collision_2: 0.000000
+        - collision_3: 0.000000
+        - collision_4: 0.000000
+        - collision_5: 0.000000
+        - collision_6: 0.000000
+        - collision_7: 0.000000
+        - collision_8: 0.000000
+        - collision_9: 0.000000
+        - collision_10: 0.000000
+        - collision_11: 0.000000
+        - collision_12: 0.000000
+        - collision_13: 0.000000
+        - collision_14: 0.000000
+        - collision_15: 0.000000
+        - collision_16: 0.000000
+        - collision_17: 0.000000
+        - collision_18: 0.000000
+        - collision_19: 0.000000
+        - collision_20: 0.000000
+        - collision_21: 0.000000
+        - collision_22: 0.000000
+        - collision_23: 0.000000
+        - collision_24: 0.000000
+        - collision_25: 0.000000
+        - collision_26: 0.000000
+        - collision_27: 0.000000
+        - collision_28: 0.000000
+        - collision_29: 0.000000
+        - collision_30: 0.000000
+        - collision_31: 0.000000
+        - collision_32: 0.000000
+        - collision_33: 0.000000
+        - collision_34: 0.000000
+        - collision_35: 0.000000
+        - collision_36: 0.000000
+        - collision_37: 0.000000
+        - collision_38: 0.000000
+        - collision_39: 0.000000
+        - collision_40: 0.000000
+        - pose: 4.150668
+        - pose: 0.000068
+        - pose: 0.000002
+        - pose: 0.000004
+        - pose: 0.000008
+        - pose: 0.000012
+        - pose: 0.000016
+        - pose: 0.000021
+        - pose: 0.000028
+        - pose: 0.000038
+        - pose: 0.000046
+        - pose: 0.000055
+        - pose: 0.000063
+        - pose: 0.000074
+        - pose: 0.000086
+        - pose: 0.000101
+        - pose: 0.000106
+        - pose: 0.000097
+        - pose: 0.000099
+        - pose: 0.000102
+        - pose: 0.000115
+        - pose: 0.000127
+        - pose: 0.000106
+        - pose: 0.000084
+        - pose: 0.000068
+        - pose: 0.000055
+        - pose: 0.000045
+        - pose: 0.000035
+        - pose: 0.000031
+        - pose: 0.000025
+        - pose: 0.000018
+        - pose: 0.000011
+        - pose: 0.000008
+        - pose: 0.000008
+        - pose: 0.000008
+        - pose: 0.000008
+        - pose: 0.000010
+        - pose: 0.000008
+        - pose: 0.000006
+        - pose: 0.000003
+        - pose: 0.000001
+        - pose: 0.000002
+        - tot_cost: 4.505964
+        constraints: 
+        max_pos_error: 0.000002

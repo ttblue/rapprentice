@@ -1,0 +1,69 @@
+Zrot +10 - (1 - old kp, 2 - new kp) 
+	1. Success.
+	2. Success (was beautiful).
+Zrot +15 - (1,2 - old kp, 3,4 - new kp)
+	1. Failed to pierce second hole.
+	2. Failed to pierce second hole.
+	3. Failed to remove needle - the first and second pierces were not on the dot.
+	4. Failed to pierce second hole - much closer than the previous kp choices.
+Zrot -10 - (1 - old kp, 2,3,4 - new kp)
+	1. Success.
+	2. Failure at first pierce - a little off target.
+	3. Faiulre at first piece - a little off target.
+	4. Success.
+	# Comments: This failed twice or so on the second attempt but I strongly believe it was incorrect kp selection.
+	# 	    And the normal was off because of the sponge being uneven and weak at the hole.
+	#	    When I moved the hole to be flat (better normal) and took care, it succeeded. Not sure how you want to view the failures.
+Zrot -15 - (1,2 - new kp)
+	1. Success.
+	2. Success.
+	# Comments: first pierce is off-target by 1 cm or so but goes through for both cases - so success is slightly questionable.
+
+
+# X rotation is great in general
+Xrot +10 - (1 - old kp, 2 - new kp)
+	1. Success.
+	2. Success.
+Xrot +15 - (1,2 - new kp)
+	1. Success.
+	2. Success.	
+Xrot -10 - (1 - old kp, 2 - new kp)
+	1. Success.
+	2. Success.
+Xrot -15 - (1,2 - old kp)
+	1. Success.
+	2. Failed to remove needle - probably because needle handle was a little too thick
+
+
+# Y rotation is also great in general
+Yrot +10 - (1 - old kp, 2 - new kp) 
+	1. Success.
+	2. Failed to pierce first hole - very sure this was human error in kp selection.
+	3. Success.
+Yrot +15 - (1,2 - new kp)
+	1. Success.
+	2. Success.
+	# Comment - both of these were beautiful)
+Yrot -10 - (1 - old kp, 2 - new kp)
+	1. Success.
+	2. Success.
+	# Comments - forgot to log some segments.
+Yrot -15 - (1,2 - new kp)
+	1. Success.
+	2. Success.
+
+
+Non rigid, lr closer, middle up to 6 inches - 
+	1. Success.
+	2. Failed to pierce first hole - I suspect back kp selection.
+	3. Success even through high warping costs.
+
+Non rigid, lr closer, middle up to 8 inches - 
+	1. Failure to pierce first hole.
+	2. Failure to pierce first hole. (marginally closer)
+
+Non rigid, ud closer, middle up to 6 inches - 
+	1. Failed on first pierce.
+
+Non rigid, cross du - 
+	1. Failed on second pierce because of potentially bad keypoint selection.i

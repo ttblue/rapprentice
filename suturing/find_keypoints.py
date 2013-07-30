@@ -170,24 +170,24 @@ def key_points_to_points (keypoints, use_ntt_kp):
             kp_mapping[key] = [len(points)]
             points.append(loc)
             
-    if "right_hole_normal" in keys and "left_hole_normal" in keys:
-        h1, n1 = np.array(keypoints["right_hole_normal"])
-        h2, n2 = np.array(keypoints["left_hole_normal"])
-        n_p = len(points)
-        kp_mapping["hn_extra"] = [n_p, n_p+1, n_p+2, n_p+3]
-        for alpha in [0.2,0.4,0.6,0.8]:
-            points.append(h1*alpha + h2*(1-alpha))
-        
-        if "bottom_cut" not in keys or "middle_cut" not in keys:
-            
-            h = h2 - h1
-            hm = (h1+h2)/2
-            n = (n1+n2)/2
-            x = np.cross(h,n)
-            x = x/np.linalg.norm(x)
-            kp_mapping["hn_extra"].extend([n_p+4, n_p+5, n_p+6])
-            points.append(hm)
-            points.append(hm+dist*x)
-            points.append(hm-dist*x)
+#     if "right_hole_normal" in keys and "left_hole_normal" in keys:
+#         h1, n1 = np.array(keypoints["right_hole_normal"])
+#         h2, n2 = np.array(keypoints["left_hole_normal"])
+#         n_p = len(points)
+#         kp_mapping["hn_extra"] = [n_p, n_p+1, n_p+2, n_p+3]
+#         for alpha in [0.2,0.4,0.6,0.8]:
+#             points.append(h1*alpha + h2*(1-alpha))
+#         
+#         if "bottom_cut" not in keys or "middle_cut" not in keys:
+#             
+#             h = h2 - h1
+#             hm = (h1+h2)/2
+#             n = (n1+n2)/2
+#             x = np.cross(h,n)
+#             x = x/np.linalg.norm(x)
+#             kp_mapping["hn_extra"].extend([n_p+4, n_p+5, n_p+6])
+#             points.append(hm)
+#             points.append(hm+dist*x)
+#             points.append(hm-dist*x)
 
     return np.array(points), False, kp_mapping
