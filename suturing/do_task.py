@@ -488,7 +488,7 @@ def main():
             with open(filename,'w') as fh:
                 fh.write("experiment: %s\ninfo: \n"%name)
     
-    thc.start()
+    #thc.start()
     
     if args.execution:
         Globals.pr2 = PR2.PR2()
@@ -624,13 +624,12 @@ def main():
             #if "right_hole_normal" in new_keypoints or "left_hole_normal" in new_keypoints:
             #    bend_c = 0.1
             #    rot_c = [1e-5,1e-5,0.1]
-            wt = 5
-            wt_n = np.ones(len(old_xyz))
-            if kp_mapping.get("right_hole_normal"):
-                wt_n[kp_mapping["right_hole_normal"][0]] = wt
-            if kp_mapping.get("left_hole_normal"):
-                wt_n[kp_mapping["left_hole_normal"][0]] = wt
-            print "Found hole normals"
+            #wt = 5
+            #wt_n = np.ones(len(old_xyz))
+            #if kp_mapping.get("right_hole_normal"):
+            #    wt_n[kp_mapping["right_hole_normal"][0]] = wt
+            #if kp_mapping.get("left_hole_normal"):
+            #    wt_n[kp_mapping["left_hole_normal"][0]] = wt
             #else:
             #    bend_c = 0.1
             #    rot_c = 1e-5#[0,0,1e-5]
@@ -669,9 +668,9 @@ def main():
             handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
 
         if args.ask:
-            if new_xyz.any() and new_xyz.shape != (4,4):
-                import visualize
-                visualize.plot_mesh_points(f.transform_points, old_xyz, new_xyz)
+#             if new_xyz.any() and new_xyz.shape != (4,4):
+#                 import visualize
+#                 visualize.plot_mesh_points(f.transform_points, old_xyz, new_xyz)
                 #lines = plotting_openrave.gen_grid(f.transform_points, np.array([0,-1,0]), np.array([1,1,1]))
                 #plotting_openrave.plot_lines(lines)
             if not yes_or_no.yes_or_no("Continue?"):
@@ -789,7 +788,7 @@ def main():
                 old_ee_traj = np.asarray(old_ee_traj)
                 old_joint_traj = {'l':ds_traj[:,:7], 'r':ds_traj[:,7:]}[lr]
 
-                if arm_moved(old_joint_traj):
+                if lr == 'l':#arm_moved(old_joint_traj):
                     
                     manip_name = {"l":"leftarm", "r":"rightarm"}[lr]
                     new_ee_traj = f.transform_hmats(old_ee_traj)

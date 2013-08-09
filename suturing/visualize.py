@@ -21,7 +21,7 @@ def plot_mesh(f, mins, maxes, xres = .1, yres = .1, zres = .04):
     ax = Axes3D(fig)
     #ax  = fig.add_subplot(111, projection = '3d')
     
-    lines = po.grid_lines(f, mins, maxes, xres, yres, zres)
+    lines = po.gen_grid(f, mins, maxes, xres, yres, zres)
     
     for line in lines:
         ax.plot(line[:,0].tolist(), line[:,1].tolist(), line[:,2].tolist(), color='b')
@@ -33,26 +33,29 @@ def plot_mesh(f, mins, maxes, xres = .1, yres = .1, zres = .04):
 
 def plot_mesh_points(f, old_xyz, new_xyz):
     
-    fig = matplotlib.pyplot.figure()
-    fig.patch.set_facecolor('black')
-    ax = Axes3D(fig)
+    #fig = matplotlib.pyplot.figure()
+    #fig.patch.set_facecolor('black')
+    #ax = Axes3D(fig)
     #ax  = fig.add_subplot(111, projection = '3d')
     
-    lines = po.grid_lines(f, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04)
+    lines = po.gen_grid(f, [0.45,0.15,0.8], [0.55,-0.15,0.95])#, xres = .1, yres = .1, zres = .04)
     
-    for line in lines:
-        ax.plot(line[:,0].tolist(), line[:,1].tolist(), line[:,2].tolist(), color='y')
+    tfm_xyz = f(old_xyz)
+    
+    po.plot_lines_and_points(old_xyz, new_xyz, tfm_xyz, lines, color=(1,1,1), line_width=1, opacity=0.4)
+    
+    #for line in lines:
+    #    ax.plot(line[:,0].tolist(), line[:,1].tolist(), line[:,2].tolist(), color='y')
         #for i in xrange(line.shape[0]-1):
         #    p1, p2 = line[i], line[i+1]
         #    ax.plot([p1[0],p2[0]], [p1[1],p2[1]], [p1[2],p2[2]])
         
-    tfm_xyz = f(old_xyz)
     
-    ax.scatter(old_xyz[:,0].tolist(), old_xyz[:,1].tolist(), old_xyz[:,2].tolist(), color='r')
-    ax.scatter(tfm_xyz[:,0].tolist(), tfm_xyz[:,1].tolist(), tfm_xyz[:,2].tolist(), color='g')
-    ax.scatter(new_xyz[:,0].tolist(), new_xyz[:,1].tolist(), new_xyz[:,2].tolist(), color='b')
+    #ax.scatter(old_xyz[:,0].tolist(), old_xyz[:,1].tolist(), old_xyz[:,2].tolist(), color='r')
+    #ax.scatter(tfm_xyz[:,0].tolist(), tfm_xyz[:,1].tolist(), tfm_xyz[:,2].tolist(), color='g')
+    #ax.scatter(new_xyz[:,0].tolist(), new_xyz[:,1].tolist(), new_xyz[:,2].tolist(), color='b')
         
-    matplotlib.pyplot.show()
+    #matplotlib.pyplot.show()
 
 
 def plot_tfm (old_xyz, new_xyz, bend_c, rot_c, wt_n=None):
